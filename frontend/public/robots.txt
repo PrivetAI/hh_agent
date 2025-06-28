@@ -1,0 +1,41 @@
+# robots.txt
+User-agent: *
+Allow: /
+
+# Исключаем служебные страницы
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+Disallow: /dashboard/
+
+# Разрешаем доступ к статическим ресурсам
+Allow: /favicon.ico
+Allow: /sitemap.xml
+Allow: /*.css
+Allow: /*.js
+Allow: /*.png
+Allow: /*.jpg
+Allow: /*.jpeg
+Allow: /*.gif
+Allow: /*.webp
+Allow: /*.svg
+
+# Указываем местоположение sitemap
+Sitemap: https://hhagent.ru/sitemap.xml
+
+# Настройки для основных поисковиков
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Yandex
+Allow: /
+
+# Ограничения для агрессивных ботов
+User-agent: SemrushBot
+Crawl-delay: 10
+
+User-agent: AhrefsBot
+Crawl-delay: 10

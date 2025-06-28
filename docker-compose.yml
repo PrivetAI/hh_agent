@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hhapp}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-hhapp}
+      REDIS_URL: redis://redis:6379
+      HH_CLIENT_ID: ${HH_CLIENT_ID}
+      HH_CLIENT_SECRET: ${HH_CLIENT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      HH_BATCH_SIZE: ${HH_BATCH_SIZE}
+      HH_BATCH_DELAY: ${HH_BATCH_DELAY}
+      HH_RETRY_COUNT: ${HH_RETRY_COUNT}
+      ROBOKASSA_MERCHANT_LOGIN: ${ROBOKASSA_MERCHANT_LOGIN}
+      ROBOKASSA_PASSWORD_1: ${ROBOKASSA_PASSWORD_1}
+      ROBOKASSA_PASSWORD_2: ${ROBOKASSA_PASSWORD_2}
+      ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-true}
+      ROBOKASSA_TEST_PASSWORD_1: ${ROBOKASSA_TEST_PASSWORD_1}
+      ROBOKASSA_TEST_PASSWORD_2: ${ROBOKASSA_TEST_PASSWORD_2}
+      FRONTEND_URL: ${FRONTEND_URL}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    working_dir: /app
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
+      INTERNAL_API_URL: http://backend:8000  
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
+volumes:
+  postgres_data:

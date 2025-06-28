@@ -1,0 +1,80 @@
+# ======================
+# Общие системные
+# ======================
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+# Логи
+*.log
+
+# ======================
+# IDE / редакторы
+# ======================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ======================
+# Окружения и переменные
+# ======================
+# dotenv
+.env
+.env.*
+# npm / yarn / pnpm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ======================
+# Python (backend)
+# ======================
+# Кэш компиляции
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения
+venv/
+.venv/
+env/
+ENV/
+
+# Инструменты статического анализа / сборки
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+coverage/
+dist/
+build/
+
+# Базы данных (если есть)
+*.sqlite3
+
+# ======================
+# Node / Next.js (frontend)
+# ======================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# TypeScript
+*.tsbuildinfo
+
+# ======================
+# Docker
+# ======================
+# Локальные оверрайды
+docker-compose.override.yml
+# Снимки образов / экспорт
+*.tar
+
+# ======================
+# Прочее
+# ======================
+# Сгенерированные файлы редакторов или ОС
+*~
