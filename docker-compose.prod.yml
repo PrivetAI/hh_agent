@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres-hh:
+    image: postgres:15-alpine
+    container_name: hhagent_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hhapp}
+      POSTGRES_USER: ${POSTGRES_USER:-hhuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hhpass}
+    volumes:
+      - postgres_hh_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hhuser} -d ${POSTGRES_DB:-hhapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hh-network
+
+  redis-hh:
+    image: redis:7-alpine
+    container_name: hhagent_redis
+    ports:
+      - "6380:6379"
+    restart: unless-stopped
+    networks:
+      - hh-network
+
+  backend-hh:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: hhagent_backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hhuser}:${POSTGRES_PASSWORD:-hhpass}@postgres-hh:5432/${POSTGRES_DB:-hhapp}
+      REDIS_URL: redis://redis-hh:6379
+      HH_CLIENT_ID: ${HH_CLIENT_ID}
+      HH_CLIENT_SECRET: ${HH_CLIENT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      HH_BATCH_SIZE: ${HH_BATCH_SIZE:-50}
+      HH_BATCH_DELAY: ${HH_BATCH_DELAY:-1}
+      HH_RETRY_COUNT: ${HH_RETRY_COUNT:-3}
+      ROBOKASSA_MERCHANT_LOGIN: ${ROBOKASSA_MERCHANT_LOGIN}
+      ROBOKASSA_PASSWORD_1: ${ROBOKASSA_PASSWORD_1}
+      ROBOKASSA_PASSWORD_2: ${ROBOKASSA_PASSWORD_2}
+      ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-false}
+      ROBOKASSA_TEST_PASSWORD_1: ${ROBOKASSA_TEST_PASSWORD_1}
+      ROBOKASSA_TEST_PASSWORD_2: ${ROBOKASSA_TEST_PASSWORD_2}
+      FRONTEND_URL: ${FRONTEND_URL:-https://hhagent.ru}
+    depends_on:
+      postgres-hh:
+        condition: service_healthy
+      redis-hh:
+        condition: service_started
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    networks:
+      - hh-network
+
+  frontend-hh:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: hhagent_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: https://hhagent.ru/api
+      NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
+      INTERNAL_API_URL: http://backend-hh:8000
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+    depends_on:
+      - backend-hh
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    networks:
+      - hh-network
+
+volumes:
+  postgres_hh_data:
+
+networks:
+  hh-network:
+    driver: bridge
+    name: hhagent_network
