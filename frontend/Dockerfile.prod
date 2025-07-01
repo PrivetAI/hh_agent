@@ -22,10 +22,19 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Copy package.json for dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
 # Copy built application
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
+
+# Check if standalone build exists, if not use regular build
+RUN mkdir -p ./.next
 COPY --from=builder /app/.next/static ./.next/static
+
+# Copy standalone if it exists, otherwise copy the full .next directory
+COPY --from=builder /app/.next ./.next
 
 # Set correct permissions
 RUN chown -R nextjs:nodejs /app
@@ -37,4 +46,5 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["node", "server.js"]   
+# Use npm start for regular Next.js, or node server.js for standalone
+CMD ["npm", "start"]

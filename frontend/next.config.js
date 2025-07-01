@@ -49,7 +49,7 @@ const nextConfig = {
             value: 'public, max-age=31536000, immutable'
           }
         ]
-      },
+      },  
       {
         source: '/(.*\\.(png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot))',
         headers: [
