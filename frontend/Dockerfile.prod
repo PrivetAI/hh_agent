@@ -1,50 +1,32 @@
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package.json (and package-lock.json if it exists)
+# Copy package files
 COPY package*.json ./
 
-# Use npm ci if package-lock.json exists, otherwise use npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Install dependencies
+RUN npm install
 
-# Copy the rest of the application
+# Copy source code
 COPY . .
 
 # Build the application
 RUN npm run build
 
-FROM node:18-alpine AS runner
-
-WORKDIR /app
-
-# Create a non-root user
+# Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy package.json for dependencies
-COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
-
-# Copy built application
-COPY --from=builder /app/public ./public
-
-# Check if standalone build exists, if not use regular build
-RUN mkdir -p ./.next
-COPY --from=builder /app/.next/static ./.next/static
-
-# Copy standalone if it exists, otherwise copy the full .next directory
-COPY --from=builder /app/.next ./.next
-
-# Set correct permissions
+# Change ownership
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Use npm start for regular Next.js, or node server.js for standalone
+# Start the application
 CMD ["npm", "start"]
