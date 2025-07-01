@@ -1,32 +1,40 @@
-FROM python:3.11-slim AS builder
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+# Copy package.json (and package-lock.json if it exists)
+COPY package*.json ./
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Use npm ci if package-lock.json exists, otherwise use npm install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-FROM python:3.11-slim
+# Copy the rest of the application
+COPY . .
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Build the application
+RUN npm run build
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 && rm -rf /var/lib/apt/lists/*
+FROM node:18-alpine AS runner
 
-RUN groupadd -r app && useradd --no-log-init -r -g app app
-
-COPY --from=builder /usr/local /usr/local
-COPY . /app
-RUN chown -R app:app /app
-
-USER app
 WORKDIR /app
-EXPOSE 8000
 
-CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "2"]
+# Create a non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Set correct permissions
+RUN chown -R nextjs:nodejs /app
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
+
+CMD ["node", "server.js"]   
