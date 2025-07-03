@@ -13,7 +13,9 @@ const nextConfig = {
   
   // Сжатие
   compress: true,
-  
+    serverRuntimeConfig: {},
+  publicRuntimeConfig: {},
+  output: 'standalone',
   // Оптимизация для production
   poweredByHeader: false,
   
