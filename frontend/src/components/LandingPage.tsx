@@ -10,7 +10,7 @@ export default function LandingPage({}: LandingPageProps) {
   const handleLogin = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/hh`)
+      const response = await fetch(`/api/auth/hh`)
       const data = await response.json()
       window.location.href = data.url
     } catch (error) {
