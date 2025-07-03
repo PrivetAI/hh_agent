@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.database import create_tables
 from .api.v1 import auth, vacancy, payment, user
 
-# Создание таблиц базы данных
+# Create tables
 create_tables()
 
 app = FastAPI(
@@ -13,33 +13,43 @@ app = FastAPI(
     description="API для автоматизации откликов на вакансии с HH"
 )
 
-# Список разрешённых источников (origins)
+# Статический список origins для разработки и продакшена
 origins = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://hhagent.ru",               # Добавлено продакшн-домен
-    "http://hh_frontend:3000",          # Docker контейнеры
+    "https://hhagent.ru",
+    "http://hh_frontend:3000",  # Для связи между контейнерами
 ]
 
-# Настройка CORS
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Можно оставить *, это нормально
-    allow_headers=["*"],  # Разрешаем любые заголовки
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-CSRF-Token",
+        "Cache-Control",
+        "Pragma",
+    ],
+    expose_headers=["*"]
 )
 
-# Роуты с префиксом /api
-app.include_router(auth.router, prefix="/api")
-app.include_router(vacancy.router, prefix="/api")
-app.include_router(payment.router, prefix="/api")
-app.include_router(user.router, prefix="/api")
+# Include routers
+app.include_router(auth.router)
+app.include_router(vacancy.router)
+app.include_router(payment.router)
+app.include_router(user.router)
 
-# Главная страница API
-@app.get("/api/")
+@app.get("/")
 async def root():
     return {
         "message": "HH Job Application API v2.0",
@@ -53,12 +63,10 @@ async def root():
         ]
     }
 
-# Healthcheck
-@app.get("/api/health")
+@app.get("/health")
 async def health_check():
     return {"status": "ok"}
 
-# Проверка CORS
-@app.get("/api/cors-test")
+@app.get("/cors-test")
 async def cors_test():
     return {"message": "CORS working", "origins": origins}
