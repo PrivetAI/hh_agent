@@ -8,11 +8,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
     
-    # HeadHunter
+    # HeadHunter API - будут загружены из .env
     HH_CLIENT_ID: str
     HH_CLIENT_SECRET: str
     
-    # OpenAI
+    # OpenAI - будет загружен из .env
     OPENAI_API_KEY: str
     
     # JWT
@@ -20,17 +20,17 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     
-    # Robokassa
+    # Robokassa - будут загружены из .env
     ROBOKASSA_MERCHANT_LOGIN: str
-    ROBOKASSA_PASSWORD_1: str  # Для формирования запроса
-    ROBOKASSA_PASSWORD_2: str  # Для проверки ответа
+    ROBOKASSA_PASSWORD_1: str
+    ROBOKASSA_PASSWORD_2: str
     ROBOKASSA_TEST_MODE: bool = True
     ROBOKASSA_TEST_PASSWORD_1: str = "test_password_1"
     ROBOKASSA_TEST_PASSWORD_2: str = "test_password_2"
     
-    # App
-    APP_URL: str = "http://localhost:3000"
-    API_URL: str = "http://localhost:8000"
+    # App URLs
+    API_URL: str 
+    FRONTEND_URL: str 
     
     # HH Rate Limiting
     HH_BATCH_SIZE: int = 5
@@ -39,5 +39,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        env_file_encoding = 'utf-8'
+        case_sensitive = True
 
 settings = Settings()

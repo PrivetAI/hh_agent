@@ -38,7 +38,7 @@ async def hh_auth(request: Request, user_id: str = None):
             pass
     
     return {
-        "url": f"https://hh.ru/oauth/authorize?response_type=code&client_id={settings.HH_CLIENT_ID}&redirect_uri={settings.APP_URL}"
+        "url": f"https://hh.ru/oauth/authorize?response_type=code&client_id={settings.HH_CLIENT_ID}&redirect_uri={settings.FRONTEND_URL}"
     }
 
 @router.post("/callback")
