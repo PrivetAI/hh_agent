@@ -7,36 +7,37 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hhapp}
       POSTGRES_USER: ${POSTGRES_USER:-hhuser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hhpass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_hh_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hhuser} -d ${POSTGRES_DB:-hhapp}"]
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    restart: always
     networks:
       - hh-network
 
   redis-hh:
     image: redis:7-alpine
     container_name: hhagent_redis
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "6380:6379"
-    restart: unless-stopped
+      - "127.0.0.1:6380:6379"
+    restart: always
     networks:
       - hh-network
 
   backend-hh:
     build: 
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     container_name: hhagent_backend
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hhuser}:${POSTGRES_PASSWORD:-hhpass}@postgres-hh:5432/${POSTGRES_DB:-hhapp}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hhuser}:${POSTGRES_PASSWORD}@postgres-hh:5432/${POSTGRES_DB:-hhapp}
       REDIS_URL: redis://redis-hh:6379
       HH_CLIENT_ID: ${HH_CLIENT_ID}
       HH_CLIENT_SECRET: ${HH_CLIENT_SECRET}
@@ -58,15 +59,15 @@ services:
       redis-hh:
         condition: service_started
     ports:
-      - "8001:8000"
-    restart: unless-stopped
+      - "127.0.0.1:8001:8000"
+    restart: always
     networks:
       - hh-network
 
   frontend-hh:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     container_name: hhagent_frontend
     environment:
       NEXT_PUBLIC_API_URL: https://hhagent.ru/api
@@ -77,8 +78,8 @@ services:
     depends_on:
       - backend-hh
     ports:
-      - "3001:3000"
-    restart: unless-stopped
+      - "127.0.0.1:3001:3000"
+    restart: always
     networks:
       - hh-network
 
