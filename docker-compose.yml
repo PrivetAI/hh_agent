@@ -35,7 +35,7 @@ services:
       ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-true}
       ROBOKASSA_TEST_PASSWORD_1: ${ROBOKASSA_TEST_PASSWORD_1}
       ROBOKASSA_TEST_PASSWORD_2: ${ROBOKASSA_TEST_PASSWORD_2}
-      FRONTEND_URL: ${FRONTEND_URL}
+      FRONTEND_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
       - postgres
       - redis
@@ -51,7 +51,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
-      NEXT_PUBLIC_API_URL: ${FRONTEND_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
       INTERNAL_API_URL: http://backend:8000  
     depends_on:

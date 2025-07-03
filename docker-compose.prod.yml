@@ -52,7 +52,7 @@ services:
       # ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-false}
       # ROBOKASSA_TEST_PASSWORD_1: ${ROBOKASSA_TEST_PASSWORD_1}
       # ROBOKASSA_TEST_PASSWORD_2: ${ROBOKASSA_TEST_PASSWORD_2}
-      FRONTEND_URL: ${FRONTEND_URL:-https://hhagent.ru}
+      FRONTEND_URL: ${NEXT_PUBLIC_API_URL:-https://hhagent.ru}
     depends_on:
       postgres-hh:
         condition: service_healthy
@@ -70,7 +70,7 @@ services:
       dockerfile: Dockerfile.prod
     container_name: hhagent_frontend
     environment:
-      NEXT_PUBLIC_API_URL: ${FRONTEND_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
       INTERNAL_API_URL: http://backend-hh:8000
       NODE_ENV: production
