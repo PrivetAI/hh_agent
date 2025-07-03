@@ -28,8 +28,6 @@ class Settings(BaseSettings):
     ROBOKASSA_TEST_PASSWORD_1: str = "test_password_1"
     ROBOKASSA_TEST_PASSWORD_2: str = "test_password_2"
     
-    # App URLs
-    API_URL: str 
     FRONTEND_URL: str 
     
     # HH Rate Limiting
