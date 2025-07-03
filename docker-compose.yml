@@ -51,7 +51,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${FRONTEND_URL}
       NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
       INTERNAL_API_URL: http://backend:8000  
     depends_on:
