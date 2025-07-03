@@ -1,7 +1,8 @@
 import axios, { AxiosInstance } from 'axios'
 import { AuthManager } from '../utils/auth'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+// const BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+const BASE_URL = '' 
 
 // Интерфейс для AI метаданных
 interface AIMetadata {
