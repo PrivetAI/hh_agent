@@ -70,7 +70,7 @@ services:
       dockerfile: Dockerfile.prod
     container_name: hhagent_frontend
     environment:
-      NEXT_PUBLIC_API_URL: https://hhagent.ru/api
+      NEXT_PUBLIC_API_URL: ${FRONTEND_URL}
       NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
       INTERNAL_API_URL: http://backend-hh:8000
       NODE_ENV: production

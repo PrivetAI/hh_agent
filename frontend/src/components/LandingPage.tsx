@@ -214,7 +214,7 @@ export default function LandingPage({}: LandingPageProps) {
                   Публичная офферта
                 </a>
                 <p className="text-sm sm:text-base text-gray-500">
-                  © 2024 HH Agent
+                  © 2025 HH Agent
                 </p>
               </div>
               <div className="text-center sm:text-right">
