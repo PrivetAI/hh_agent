@@ -1,8 +1,43 @@
+# 1. Устанавливаем runtime-зависимости
 FROM node:18-alpine AS deps
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 COPY package*.json ./
 
-# installs only prod deps, no lockfile needed
+# устанавливаем только production-зависимости
 RUN npm install --omit=dev
+
+# 2. Собираем приложение
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+# копируем prod‑deps из предыдущего шага
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# 3. Финальный образ для запуска
+FROM node:18-alpine AS runner
+WORKDIR /app
+
+# переменные окружения в современном формате
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+# создаём небезопасный пользователь
+RUN addgroup --system --gid 1001 nextjs \
+ && adduser  --system --uid 1001 --ingroup nextjs nextjs
+
+# копируем артефакты сборки
+COPY --from=builder /app/public          ./public
+COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nextjs /app/.next/static     ./.next/static
+
+USER nextjs
+EXPOSE 3000
+
+CMD ["node", "server.js"]
