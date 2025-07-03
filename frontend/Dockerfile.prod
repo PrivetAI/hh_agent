@@ -1,39 +1,52 @@
-# 1. Собираем prod‑зависимости
-FROM node:18-alpine AS deps
-RUN apk add --no-cache libc6-compat
+# Build stage
+FROM node:18-bullseye-slim AS builder
 
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
-RUN npm install --omit=dev
 
-# 2. Сборка Next.js
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build the application
 RUN npm run build
 
-# 3. Финальный образ
-FROM node:18-alpine AS runner
+# Production stage
+FROM ubuntu:22.04
+
+# Install Node.js
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd --create-home --shell /bin/bash app
+
+# Set working directory
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000
+# Copy built application from builder stage
+COPY --from=builder --chown=app:app /app/package*.json ./
+COPY --from=builder --chown=app:app /app/node_modules ./node_modules
+COPY --from=builder --chown=app:app /app/.next ./.next
+COPY --from=builder --chown=app:app /app/public ./public
 
-# непременно тот же пользователь, чтобы статические файлы были доступны
-RUN addgroup --system --gid 1001 nextjs \
- && adduser  --system --uid 1001 --ingroup nextjs nextjs
+# Switch to app user
+USER app
 
-# копируем всё нужное из билд‑этапа
-COPY --from=builder /app/package.json      ./package.json
-COPY --from=builder /app/public            ./public
-COPY --from=builder /app/.next             ./.next
-COPY --from=builder /app/node_modules      ./node_modules
-
-USER nextjs
+# Expose port
 EXPOSE 3000
 
-# запускаем через встроенный next server
-CMD ["npx", "next", "start", "-p", "3000"]
+# Set environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Start the application
+CMD ["npm", "start"]
