@@ -10,9 +10,9 @@ from ..models.schemas import PaymentCreate
 class PaymentCRUD:
     # Пакеты кредитов
     PACKAGES = {
-        "50": {"credits": 50, "amount": Decimal("990.00")},
-        "100": {"credits": 100, "amount": Decimal("1790.00")},
-        "200": {"credits": 200, "amount": Decimal("2990.00")}
+        "50": {"credits": 50, "amount": Decimal("149.00")},
+        "100": {"credits": 100, "amount": Decimal("249.00")},
+        "200": {"credits": 200, "amount": Decimal("399.00")}
     }
     
     @staticmethod

@@ -123,21 +123,21 @@ async def get_packages():
         {
             "id": "50",
             "credits": 50,
-            "amount": 990,
+            "amount": 149,
             "currency": "RUB",
             "popular": False
         },
         {
             "id": "100",
             "credits": 100,
-            "amount": 1790,
+            "amount": 249,
             "currency": "RUB",
             "popular": False
         },
         {
             "id": "200",
             "credits": 200,
-            "amount": 2990,
+            "amount": 399,
             "currency": "RUB",
             "popular": True
         }
