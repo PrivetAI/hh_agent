@@ -26,7 +26,7 @@ class RobokassaPaymentService:
         signature_string = ":".join(str(arg) for arg in args)
         return hashlib.md5(signature_string.encode()).hexdigest()
     
-    def create_payment_link(self, payment_id: UUID, amount: float, description: str) -> str:
+    def create_payment_link(self, payment_id: UUID, amount: float, description: str, user_email: str = None) -> str:
         """Create payment link for Robokassa"""
         out_sum = f"{amount:.2f}"
         inv_id = str(payment_id)
@@ -50,6 +50,10 @@ class RobokassaPaymentService:
             "Encoding": "utf-8"
         }
         
+        # Добавляем email если передан
+        if user_email:
+            params["Email"] = user_email
+        
         # Добавляем флаг тестового режима
         if self.test_mode:
             params["IsTest"] = "1"
@@ -58,11 +62,17 @@ class RobokassaPaymentService:
         return f"{self.base_url}?{urlencode(params)}"
     
     def verify_payment_result(self, data: Dict[str, Any]) -> bool:
-        """Verify payment result from Robokassa"""
+        """Verify payment result from Robokassa
+        
+        Result URL format: OutSum:InvId:Password2
+        """
         try:
             out_sum = data.get("OutSum")
             inv_id = data.get("InvId")
             signature = data.get("SignatureValue", "").upper()
+            
+            if not all([out_sum, inv_id, signature]):
+                return False
             
             # Генерируем ожидаемую подпись
             expected_signature = self._generate_signature(
@@ -77,11 +87,17 @@ class RobokassaPaymentService:
             return False
     
     def verify_success_url(self, data: Dict[str, Any]) -> bool:
-        """Verify success URL signature from Robokassa"""
+        """Verify success URL signature from Robokassa
+        
+        Success URL format: OutSum:InvId:Password1
+        """
         try:
             out_sum = data.get("OutSum")
             inv_id = data.get("InvId")
             signature = data.get("SignatureValue", "").upper()
+            
+            if not all([out_sum, inv_id, signature]):
+                return False
             
             # Для Success URL используется password1
             expected_signature = self._generate_signature(

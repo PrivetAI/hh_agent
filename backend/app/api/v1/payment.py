@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Dict, Any
+import hashlib
 
 from ...api.deps import get_current_user, get_db
 from ...crud.payment import PaymentCRUD
 from ...crud.user import UserCRUD
 from ...models.db import User
 from ...models.schemas import PaymentCreate
+from ...core.config import settings
 from ...services.payment.robokassa import RobokassaPaymentService
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
@@ -27,25 +29,20 @@ async def create_payment(
     if not package_info:
         raise HTTPException(status_code=400, detail="Invalid package")
     
-    # Create payment in Tinkoff
+    # Create payment URL for Robokassa
     try:
-        tinkoff_response = await payment_service.create_payment(
+        payment_url = payment_service.create_payment_link(
             payment_id=payment.id,
-            amount=int(package_info["amount"]),
-            user_email=user.email or f"{user.hh_user_id}@hh-assistant.ru"
+            amount=float(package_info["amount"]),
+            description=f"Покупка {package_info['credits']} токенов"
         )
         
-        # Update payment with Tinkoff payment ID
-        PaymentCRUD.update_status(
-            db, 
-            payment.id, 
-            "pending", 
-            tinkoff_response.get("PaymentId")
-        )
+        # Update payment status to pending
+        PaymentCRUD.update_status(db, payment.id, "pending")
         
         return {
             "payment_id": str(payment.id),
-            "payment_url": tinkoff_response.get("PaymentURL"),
+            "payment_url": payment_url,
             "amount": float(package_info["amount"]),
             "credits": package_info["credits"]
         }
@@ -55,47 +52,69 @@ async def create_payment(
         PaymentCRUD.update_status(db, payment.id, "failed")
         raise HTTPException(status_code=500, detail=f"Payment creation failed: {str(e)}")
 
-@router.post("/webhook")
-async def payment_webhook(
+@router.get("/result")
+async def payment_result(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Handle payment webhook from Tinkoff"""
+    """Handle payment result from Robokassa"""
     try:
-        data = await request.json()
+        # Get parameters from query string
+        params = dict(request.query_params)
         
-        # Verify webhook signature
-        if not payment_service.verify_webhook(data):
+        # Verify payment result
+        if not payment_service.verify_payment_result(params):
             raise HTTPException(status_code=400, detail="Invalid signature")
         
-        # Get payment by order ID
-        payment_id = data.get("OrderId")
+        # Get payment by InvId
+        payment_id = params.get("InvId")
         if not payment_id:
-            raise HTTPException(status_code=400, detail="No OrderId in webhook")
+            raise HTTPException(status_code=400, detail="No InvId in result")
         
         payment = PaymentCRUD.get_by_id(db, payment_id)
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
         
         # Update payment status
-        status = data.get("Status")
-        if status == "CONFIRMED":
-            # Payment successful
-            PaymentCRUD.update_status(db, payment.id, "success")
-            
-            # Add credits to user
-            UserCRUD.add_credits(db, payment.user_id, payment.credits)
-            
-        elif status in ["REJECTED", "REFUNDED", "PARTIAL_REFUNDED"]:
-            # Payment failed
-            PaymentCRUD.update_status(db, payment.id, "failed")
+        PaymentCRUD.update_status(db, payment.id, "success")
         
-        return {"status": "ok"}
+        # Add credits to user
+        UserCRUD.add_credits(db, payment.user_id, payment.credits)
+        
+        # Return success response for Robokassa
+        return f"OK{payment_id}"
         
     except Exception as e:
-        # Log error but return 200 to avoid retries
-        print(f"Webhook error: {e}")
-        return {"status": "error", "message": str(e)}
+        print(f"Payment result error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/success")
+async def payment_success(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Handle success redirect from Robokassa"""
+    try:
+        # Get parameters from query string
+        params = dict(request.query_params)
+        
+        # Verify success signature
+        if not payment_service.verify_success_url(params):
+            # Redirect to frontend with error
+            return {"redirect": f"{settings.FRONTEND_URL}/?payment=error"}
+        
+        # Redirect to frontend with success
+        return {"redirect": f"{settings.FRONTEND_URL}/?payment=success"}
+        
+    except Exception as e:
+        print(f"Payment success error: {e}")
+        return {"redirect": f"{settings.FRONTEND_URL}/?payment=error"}
+
+@router.get("/fail")
+async def payment_fail(request: Request):
+    """Handle fail redirect from Robokassa"""
+    # Redirect to frontend with error
+    return {"redirect": f"{settings.FRONTEND_URL}/?payment=fail"}
 
 @router.get("/packages")
 async def get_packages():
@@ -104,21 +123,21 @@ async def get_packages():
         {
             "id": "50",
             "credits": 50,
-            "amount": 149,
+            "amount": 990,
             "currency": "RUB",
             "popular": False
         },
         {
             "id": "100",
             "credits": 100,
-            "amount": 249,
+            "amount": 1790,
             "currency": "RUB",
             "popular": False
         },
         {
             "id": "200",
             "credits": 200,
-            "amount": 399,
+            "amount": 2990,
             "currency": "RUB",
             "popular": True
         }
@@ -132,4 +151,3 @@ async def payment_history(
     """Get user's payment history"""
     payments = PaymentCRUD.get_user_payments(db, user.id)
     return payments
-
