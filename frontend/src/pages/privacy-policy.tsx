@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
             <section>
               <h2 className="text-xl font-semibold mb-3">2. Оператор персональных данных</h2>
               <p className="text-gray-700">
-                Оператор: Самозанятый Елисеенко Виктор Викторович<br/>
+                Оператор: Самозанятый Елисеенко Виктор Александрович<br/>
                 ИНН: 231136137506<br/>
                 Email: eliseenko1viktor@gmail.com<br/>
                 Телефон: +7 918 244-54-06

@@ -163,7 +163,7 @@ export default function PaymentTerms() {
             <section>
               <h2 className="text-2xl font-semibold mb-4">Контактная информация</h2>
               <div className="bg-gray-50 p-4 rounded-lg text-gray-700">
-                <p><strong>Исполнитель:</strong> Самозанятый Елисеенко Виктор Викторович</p>
+                <p><strong>Исполнитель:</strong> Самозанятый Елисеенко Виктор Александрович</p>
                 <p><strong>ИНН:</strong> 231136137506</p>
                 <p><strong>Email:</strong> eliseenko1viktor@gmail.com</p>
                 <p><strong>Телефон:</strong> +7 918 244-54-06</p>
