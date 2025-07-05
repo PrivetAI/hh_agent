@@ -2,12 +2,12 @@
 import { useState } from 'react'
 import SEOHead from './Head'
 import Footer from './Footer'
-import Link from 'next/link'
 
 interface LandingPageProps {}
 
 export default function LandingPage({}: LandingPageProps) {
   const [loading, setLoading] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
   
   const handleLogin = async () => {
     setLoading(true)
@@ -58,9 +58,30 @@ export default function LandingPage({}: LandingPageProps) {
               🎯 10 бесплатных откликов для новых пользователей
             </div>
 
+            <div className="mb-6 text-center">
+              <label className="flex items-center justify-center text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={privacyAccepted}
+                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                  className="h-4 w-4 text-[#d6001c] border-gray-300 rounded focus:ring-[#d6001c]"
+                />
+                <span className="ml-2">
+                  Я принимаю условия{' '}
+                  <a href="/offerta" className="text-[#d6001c] hover:underline" target="_blank" rel="noopener noreferrer">
+                    пользовательского соглашения
+                  </a>
+                  {' '}и{' '}
+                  <a href="/privacy-policy" className="text-[#d6001c] hover:underline" target="_blank" rel="noopener noreferrer">
+                    политики конфиденциальности
+                  </a>
+                </span>
+              </label>
+            </div>
+
             <button 
               onClick={handleLogin}
-              disabled={loading}
+              disabled={loading || !privacyAccepted}
               className="bg-[#d6001c] hover:bg-[#c5001a] text-white px-8 sm:px-10 py-3 sm:py-4 text-lg sm:text-xl font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-colors w-full sm:w-auto max-w-xs sm:max-w-none mx-auto"
               aria-label="Начать использовать HH Agent бесплатно"
             >
