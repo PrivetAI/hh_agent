@@ -1,3 +1,4 @@
+// frontend/src/pages/index.tsx
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useVacancies } from '../hooks/useVacancies'
@@ -6,6 +7,7 @@ import VacanciesTable from '../components/VacanciesTable'
 import ResumeSelector from '../components/ResumeSelector'
 import LandingPage from '../components/LandingPage'
 import SEOHead from '../components/Head'
+import Footer from '../components/Footer'
 import { TableSkeleton } from '../components/ui/Skeleton'
 import { CreditsInfo } from '../components/CreditsInfo'
 import { useCredits } from '../hooks/useCredits'
@@ -68,24 +70,32 @@ function AuthenticatedHome() {
         noindex={true}
       />
       
-      <div className="min-h-screen bg-[#f4f4f5]">
+      <div className="min-h-screen bg-[#f4f4f5] flex flex-col">
         <header className="bg-white border-b border-[#e7e7e7]">
           <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <span className="text-[#d6001c] font-bold text-xl">hh</span>
               <span className="text-[#232529] font-medium">агент</span>
             </div>
-            <button 
-              onClick={logout} 
-              className="text-sm text-[#999999] hover:text-[#d6001c]"
-              aria-label="Выйти из аккаунта"
-            >
-              Выйти
-            </button>
+            <div className="flex items-center space-x-4">
+              <a 
+                href="/payment-terms" 
+                className="text-sm text-[#666666] hover:text-[#d6001c] hidden sm:block"
+              >
+                Условия и цены
+              </a>
+              <button 
+                onClick={logout} 
+                className="text-sm text-[#999999] hover:text-[#d6001c]"
+                aria-label="Выйти из аккаунта"
+              >
+                Выйти
+              </button>
+            </div>
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 py-6 pb-6 md:pb-6 sm:pb-[75px]">
+        <main className="flex-1 max-w-6xl mx-auto px-4 py-6 pb-6 md:pb-6 w-full">
           <ResumeSelector
             selectedResumeId={selectedResumeId}
             onResumeSelect={setSelectedResumeId}
@@ -117,6 +127,8 @@ function AuthenticatedHome() {
             />
           )}
         </main>
+
+        <Footer />
       </div>
     </>
   )

@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
 import SEOHead from './Head'
+import Footer from './Footer'
+import Link from 'next/link'
 
 interface LandingPageProps {}
 
@@ -110,7 +112,6 @@ export default function LandingPage({}: LandingPageProps) {
               <p className="text-sm sm:text-base text-gray-600">Уникальное письмо автоматически прикрепляется к отклику</p>
             </article>
           </section>
-
           {/* Features Grid */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-12 sm:mb-16" aria-labelledby="features-section">
             <h2 id="features-section" className="sr-only">Преимущества HH Agent</h2>
@@ -160,6 +161,33 @@ export default function LandingPage({}: LandingPageProps) {
             </div>
           </section>
 
+          <section className="mb-12 sm:mb-16 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-6 sm:p-10 shadow-sm border border-red-200" aria-labelledby="personal-message">
+            <h2 id="personal-message" className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-6">Слово от создателя</h2>
+            
+            <div className="max-w-3xl mx-auto text-gray-700 space-y-4">
+              <p className="text-base sm:text-lg leading-relaxed">
+                Привет! Я создал HH Agent, чтобы помочь таким же людям, как и я, найти работу своей мечты.
+              </p>
+              
+              <p className="text-base sm:text-lg leading-relaxed">
+                Я искренне рад предоставить вам этот сервис. Честно говоря, я бы хотел сделать его еще дешевле — и работаю над этим каждый день. 
+                Чем больше людей будут пользоваться сервисом, тем доступнее я смогу его сделать.
+              </p>
+              
+              <p className="text-base sm:text-lg leading-relaxed">
+                <strong>Пользуйтесь, и я обещаю улучшать генерацию каждый день!</strong>
+              </p>
+                <p className="text-base sm:text-lg leading-relaxed">
+                 <strong> Моя цель — не просто создать сервис для генерации, а сделать настоящего ai убийцу рынка поиска работы... </strong>
+              </p>
+              
+              <p className="text-base sm:text-lg leading-relaxed">
+                Юзайте, делитесь обратной связью! //google form link
+              </p>
+            </div>
+          </section>
+
+
           {/* FAQ */}
           <section className="bg-white rounded-xl p-6 sm:p-10 shadow-sm border border-gray-200" aria-labelledby="faq-section">
             <h2 id="faq-section" className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-8 sm:mb-10">Популярные вопросы</h2>
@@ -201,38 +229,7 @@ export default function LandingPage({}: LandingPageProps) {
           </div>
         </main>
 
-        {/* Footer */}
-        <footer className="bg-white border-t border-gray-200 mt-12 sm:mt-16 py-6 sm:py-8">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-6 text-center sm:text-left">
-                <a 
-                  className="text-sm sm:text-base text-gray-500 hover:text-gray-700 transition-colors" 
-                  href="/offerta"
-                  rel="nofollow"
-                >
-                  Публичная офферта
-                </a>
-                <p className="text-sm sm:text-base text-gray-500">
-                  © 2025 HH Agent
-                </p>
-              </div>
-              <div className="text-center sm:text-right">
-                <p className="text-sm text-gray-500">
-                  Нужна автоматизация для бизнеса?{' '}
-                  <a 
-                    href="https://robotoffice.ru?utm_source=hhagent" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-[#d6001c] hover:text-[#c5001a] transition-colors font-medium"
-                  >
-                    robotoffice.ru
-                  </a>
-                </p>
-              </div>
-            </div>
-          </div>
-        </footer>
+        <Footer />
 
         <style jsx>{`
           .hh-loader {
