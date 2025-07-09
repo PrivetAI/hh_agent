@@ -51,15 +51,13 @@ class LetterGeneration(BaseModel):
     vacancy_title: str
     resume_id: Optional[str]
     letter_content: str
-    prompt_filename: str  # Новое поле
-    ai_model: str  # Новое поле
+    prompt_filename: str
+    ai_model: str
     created_at: datetime
     
     class Config:
         from_attributes = True
 
-
-    
 # Auth schemas
 class AuthResponse(BaseModel):
     token: str
@@ -105,28 +103,24 @@ class MatchAnalysis(BaseModel):
     gaps: List[str]
     recommendation: str
 
-
 # Credit check
 class CreditCheckResponse(BaseModel):
     has_credits: bool
     credits: int
     message: Optional[str] = None
 
-
-# Добавьте эти схемы в файл app/models/schemas.py:
-
 # Cover letter response schema
 class CoverLetter(BaseModel):
     content: str
-    prompt_filename: str  # Новое поле
-    ai_model: str  # Новое поле
+    prompt_filename: str
+    ai_model: str
 
 # Application schemas
 class ApplicationCreate(BaseModel):
     resume_id: str
     message: str
-    prompt_filename: Optional[str] = None  # Новое поле
-    ai_model: Optional[str] = None  # Новое поле
+    prompt_filename: Optional[str] = None
+    ai_model: Optional[str] = None
 
 class Application(BaseModel):
     id: UUID
@@ -140,4 +134,3 @@ class Application(BaseModel):
     
     class Config:
         from_attributes = True
-    

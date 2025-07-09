@@ -1,6 +1,7 @@
 import hashlib
-from typing import Dict, Any
-from urllib.parse import urlencode
+import json
+from typing import Dict, Any, Optional
+from urllib.parse import urlencode, quote
 from uuid import UUID
 
 from ...core.config import settings
@@ -19,25 +20,32 @@ class RobokassaPaymentService:
         else:
             self.password1 = settings.ROBOKASSA_PASSWORD_1
             self.password2 = settings.ROBOKASSA_PASSWORD_2
-            self.base_url = "https://auth.robokassa.ru/Merchant/Index.aspx"
+            self.base_url = "https://robokassa.ru/Merchant/Index.aspx"
     
     def _generate_signature(self, *args) -> str:
         """Generate MD5 signature for Robokassa"""
         signature_string = ":".join(str(arg) for arg in args)
         return hashlib.md5(signature_string.encode()).hexdigest()
     
-    def create_payment_link(self, payment_id: UUID, amount: float, description: str, user_email: str = None) -> str:
-        """Create payment link for Robokassa"""
+    def create_payment_link(
+        self, 
+        payment_id: UUID, 
+        amount: float, 
+        description: str, 
+        user_email: str = None,
+        receipt_data: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Create payment link for Robokassa with receipt data"""
         out_sum = f"{amount:.2f}"
         inv_id = str(payment_id)
         
-        # Генерируем подпись
-        signature = self._generate_signature(
+        # Базовые параметры для подписи
+        signature_params = [
             self.merchant_login,
             out_sum,
             inv_id,
             self.password1
-        )
+        ]
         
         # Формируем параметры
         params = {
@@ -45,7 +53,6 @@ class RobokassaPaymentService:
             "OutSum": out_sum,
             "InvId": inv_id,
             "Description": description,
-            "SignatureValue": signature,
             "Culture": "ru",
             "Encoding": "utf-8"
         }
@@ -57,6 +64,15 @@ class RobokassaPaymentService:
         # Добавляем флаг тестового режима
         if self.test_mode:
             params["IsTest"] = "1"
+        
+        # Добавляем данные для фискализации если есть
+        if receipt_data:
+            receipt_json = json.dumps(receipt_data, ensure_ascii=False)
+            params["Receipt"] = receipt_json
+        
+        # Генерируем подпись
+        signature = self._generate_signature(*signature_params)
+        params["SignatureValue"] = signature
         
         # Формируем URL
         return f"{self.base_url}?{urlencode(params)}"
@@ -94,7 +110,7 @@ class RobokassaPaymentService:
         try:
             out_sum = data.get("OutSum")
             inv_id = data.get("InvId")
-            signature = data.get("SignatureValue", "").upper()
+            signature = data.get("SigneatureValue", "").upper()
             
             if not all([out_sum, inv_id, signature]):
                 return False

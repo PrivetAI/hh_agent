@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import update
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
 
@@ -14,6 +14,27 @@ class PaymentCRUD:
         "100": {"credits": 100, "amount": Decimal("249.00")},
         "200": {"credits": 200, "amount": Decimal("399.00")}
     }
+    
+    @staticmethod
+    def get_receipt_data(package: str) -> Dict[str, Any]:
+        """Generate receipt data for Robokassa fiscalization"""
+        package_info = PaymentCRUD.PACKAGES.get(package)
+        if not package_info:
+            raise ValueError("Invalid package")
+        
+        return {
+            "sno": "usn_income",  # Система налогообложения (УСН доходы)
+            "items": [
+                {
+                    "name": f"Токены для генерации писем ({package_info['credits']} шт.)",
+                    "quantity": 1,
+                    "sum": float(package_info["amount"]),
+                    "payment_method": "full_prepayment",  # Предоплата 100%
+                    "payment_object": "service",  # Услуга
+                    "tax": "none"  # Без НДС
+                }
+            ]
+        }
     
     @staticmethod
     def create(db: Session, user_id: UUID, package: str) -> Payment:
@@ -65,8 +86,8 @@ class LetterGenerationCRUD:
         vacancy_title: str,
         resume_id: str, 
         letter_content: str,
-        prompt_filename: str,  # Новый параметр
-        ai_model: str  # Новый параметр
+        prompt_filename: str,
+        ai_model: str
     ) -> LetterGeneration:
         """Save generated letter to history"""
         generation = LetterGeneration(
@@ -75,8 +96,8 @@ class LetterGenerationCRUD:
             vacancy_title=vacancy_title,
             resume_id=resume_id,
             letter_content=letter_content,
-            prompt_filename=prompt_filename,  # Сохраняем промпт
-            ai_model=ai_model  # Сохраняем модель
+            prompt_filename=prompt_filename,
+            ai_model=ai_model
         )
         db.add(generation)
         db.commit()

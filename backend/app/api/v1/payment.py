@@ -34,7 +34,9 @@ async def create_payment(
         payment_url = payment_service.create_payment_link(
             payment_id=payment.id,
             amount=float(package_info["amount"]),
-            description=f"Покупка {package_info['credits']} токенов"
+            description=f"Покупка {package_info['credits']} токенов",
+            user_email=user.email,
+            receipt_data=PaymentCRUD.get_receipt_data(payment_data.package)
         )
         
         # Update payment status to pending
