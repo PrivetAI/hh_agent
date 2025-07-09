@@ -321,8 +321,7 @@ export default function LandingPage({}: LandingPageProps) {
                 </p>
                 
                 <p>
-                  Юзайте, делитесь обратной связью! 
-                  <a href="#" className="text-[#d6001c] hover:text-[#c5001a] transition-colors font-medium ml-1">Поделиться фидбеком</a>
+                  Юзайте, <a href="#" className="text-[#d6001c] hover:text-[#c5001a] transition-colors font-medium ml-1">делитесь обратной связью! </a>
                 </p>
               </div>
             </div>
