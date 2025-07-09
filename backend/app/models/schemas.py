@@ -25,6 +25,7 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+
 # Payment schemas
 class PaymentCreate(BaseModel):
     package: str  # "50", "100", "200"
@@ -34,7 +35,7 @@ class PaymentCallback(BaseModel):
     status: str
 
 class Payment(BaseModel):
-    id: UUID
+    id: int  # Изменено с UUID на int
     amount: float
     credits: int
     status: str

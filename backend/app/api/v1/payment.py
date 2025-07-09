@@ -32,7 +32,7 @@ async def create_payment(
     # Create payment URL for Robokassa
     try:
         payment_url = payment_service.create_payment_link(
-            payment_id=payment.id,
+            payment_id=payment.id,  # Теперь это int
             amount=float(package_info["amount"]),
             description=f"Покупка {package_info['credits']} токенов",
             user_email=user.email,
@@ -43,7 +43,7 @@ async def create_payment(
         PaymentCRUD.update_status(db, payment.id, "pending")
         
         return {
-            "payment_id": str(payment.id),
+            "payment_id": payment.id,  # Убрали str() преобразование
             "payment_url": payment_url,
             "amount": float(package_info["amount"]),
             "credits": package_info["credits"]
@@ -72,6 +72,12 @@ async def payment_result(
         payment_id = params.get("InvId")
         if not payment_id:
             raise HTTPException(status_code=400, detail="No InvId in result")
+        
+        # Преобразуем в int
+        try:
+            payment_id = int(payment_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid InvId format")
         
         payment = PaymentCRUD.get_by_id(db, payment_id)
         if not payment:

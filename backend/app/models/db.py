@@ -26,18 +26,16 @@ class User(Base):
 class Payment(Base):
     __tablename__ = "payments"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Изменено на Integer с autoincrement
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     credits = Column(Integer, nullable=False)
     status = Column(String, nullable=False)  # pending, success, failed
-    payment_id = Column(String)  
+    payment_id = Column(String)  # Можно удалить, если не используется
     created_at = Column(DateTime, server_default=func.now())
     
     # Relationships
     user = relationship("User", back_populates="payments")
-
-# В файле app/models/db.py найдите класс LetterGeneration и исправьте:
 
 class LetterGeneration(Base):  # НЕ BaseModel, а Base!
     __tablename__ = "letter_generations"
