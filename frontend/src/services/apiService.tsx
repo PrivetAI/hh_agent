@@ -1,8 +1,8 @@
 import axios, { AxiosInstance } from 'axios'
 import { AuthManager } from '../utils/auth'
 
-// const BASE_URL = process.env.NEXT_PUBLIC_API_URL 
-const BASE_URL = '' 
+// Получаем BASE_URL из переменных окружения
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // Интерфейс для AI метаданных
 interface AIMetadata {
@@ -36,22 +36,48 @@ class ApiService {
 
   private constructor() {
     this.axios = axios.create({
-      baseURL: BASE_URL
+      baseURL: BASE_URL,
+      timeout: 30000, // 30 секунд таймаут
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
 
     // Request interceptor
-    this.axios.interceptors.request.use(config => {
-      const token = AuthManager.getToken()
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
+    this.axios.interceptors.request.use(
+      config => {
+        const token = AuthManager.getToken()
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
+        
+        // Логируем запросы в dev режиме
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
+        }
+        
+        return config
+      },
+      error => {
+        console.error('Request interceptor error:', error)
+        return Promise.reject(error)
       }
-      return config
-    })
+    )
 
     // Response interceptor for 401
     this.axios.interceptors.response.use(
-      response => response,
+      response => {
+        // Логируем ответы в dev режиме
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`API Response: ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`)
+        }
+        return response
+      },
       async error => {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('API Error:', error.response?.status, error.response?.data)
+        }
+        
         if (error.response?.status === 401) {
           AuthManager.logout()
           window.location.href = '/'
@@ -90,12 +116,19 @@ class ApiService {
   }
 
   // Auth
+  async getAuthUrl() {
+    const response = await this.axios.get('/api/auth/hh')
+    return response.data
+  }
+
   async authenticate(code: string) {
     return this.deduplicatedRequest(
       `auth:${code}`,
       async () => {
+        // Используем прямой axios для auth, так как это может быть до инициализации токена
         const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, { 
-          params: { code } 
+          params: { code },
+          timeout: 30000,
         })
         return response.data
       }
@@ -203,6 +236,17 @@ class ApiService {
   async getHistory() {
     const response = await this.axios.get('/api/history')
     return response.data
+  }
+
+  // Метод для проверки здоровья API
+  async healthCheck() {
+    try {
+      const response = await this.axios.get('/health')
+      return response.data
+    } catch (error) {
+      console.error('Health check failed:', error)
+      throw error
+    }
   }
 }
 

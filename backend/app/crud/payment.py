@@ -10,9 +10,9 @@ from ..models.schemas import PaymentCreate
 class PaymentCRUD:
     # Пакеты кредитов
     PACKAGES = {
-        "50": {"credits": 50, "amount": Decimal("149.00")},
-        "100": {"credits": 100, "amount": Decimal("249.00")},
-        "200": {"credits": 200, "amount": Decimal("399.00")}
+        "50": {"credits": 50, "amount": Decimal("149")},
+        "100": {"credits": 100, "amount": Decimal("249")},
+        "200": {"credits": 200, "amount": Decimal("399")}
     }
     
     @staticmethod
@@ -54,11 +54,11 @@ class PaymentCRUD:
         return payment
     
     @staticmethod
-    def get_by_id(db: Session, payment_id: UUID) -> Optional[Payment]:
+    def get_by_id(db: Session, payment_id: int) -> Optional[Payment]:  # Changed from UUID to int
         return db.query(Payment).filter(Payment.id == payment_id).first()
     
     @staticmethod
-    def update_status(db: Session, payment_id: UUID, status: str, payment_ext_id: str = None) -> Optional[Payment]:
+    def update_status(db: Session, payment_id: int, status: str, payment_ext_id: str = None) -> Optional[Payment]:  # Changed from UUID to int
         values = {"status": status}
         if payment_ext_id:
             values["payment_id"] = payment_ext_id

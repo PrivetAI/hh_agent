@@ -1,59 +1,102 @@
+version: '3.8'
+
 services:
   postgres:
     image: postgres:15-alpine
+    container_name: hhagent_postgres_dev
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hhapp}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro  # Если есть init скрипты
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-hhapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hh-dev-network
 
   redis:
     image: redis:7-alpine
+    container_name: hhagent_redis_dev
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
     ports:
       - "6379:6379"
+    networks:
+      - hh-dev-network
 
   backend:
     build: 
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    container_name: hhagent_backend_dev
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-hhapp}
       REDIS_URL: redis://redis:6379
       HH_CLIENT_ID: ${HH_CLIENT_ID}
       HH_CLIENT_SECRET: ${HH_CLIENT_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      HH_BATCH_SIZE: ${HH_BATCH_SIZE}
-      HH_BATCH_DELAY: ${HH_BATCH_DELAY}
-      HH_RETRY_COUNT: ${HH_RETRY_COUNT}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-key}
+      HH_BATCH_SIZE: ${HH_BATCH_SIZE:-10}
+      HH_BATCH_DELAY: ${HH_BATCH_DELAY:-1}
+      HH_RETRY_COUNT: ${HH_RETRY_COUNT:-3}
       ROBOKASSA_MERCHANT_LOGIN: ${ROBOKASSA_MERCHANT_LOGIN}
       ROBOKASSA_PASSWORD_1: ${ROBOKASSA_PASSWORD_1}
       ROBOKASSA_PASSWORD_2: ${ROBOKASSA_PASSWORD_2}
       ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-true}
       ROBOKASSA_TEST_PASSWORD_1: ${ROBOKASSA_TEST_PASSWORD_1}
       ROBOKASSA_TEST_PASSWORD_2: ${ROBOKASSA_TEST_PASSWORD_2}
-      FRONTEND_URL: ${NEXT_PUBLIC_API_URL}
+      FRONTEND_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      # Переменные для разработки
+      DEBUG: ${DEBUG:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      PYTHONUNBUFFERED: 1
+      PYTHONDONTWRITEBYTECODE: 1
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./backend:/app
+      - backend_node_modules:/app/node_modules  # Если используете Node.js зависимости
     ports:
       - "8000:8000"
+      - "5678:5678"  # Порт для дебаггера (debugpy)
     working_dir: /app
-    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --log-level debug
+    networks:
+      - hh-dev-network
+    # Добавляем возможность подключения дебаггера
+    stdin_open: true
+    tty: true
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    container_name: hhagent_frontend_dev
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      # ВАЖНО: API_URL должен указывать на бэкенд контейнер
+      NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_HH_CLIENT_ID: ${HH_CLIENT_ID}
-      INTERNAL_API_URL: http://backend:8000  
+      # Для server-side запросов используем внутренний URL
+      INTERNAL_API_URL: http://backend:8000
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: 1
+      # Для hot reload
+      WATCHPACK_POLLING: true
+      CHOKIDAR_USEPOLLING: true
     depends_on:
       - backend
     volumes:
@@ -62,7 +105,30 @@ services:
       - /app/.next
     ports:
       - "3000:3000"
-    command: npm run dev
+    command: npm run dev -- --hostname 0.0.0.0
+    networks:
+      - hh-dev-network
+    # Для hot reload
+    stdin_open: true
+    tty: true
+
+
+  # Adminer для работы с БД
+  adminer:
+    image: adminer:latest
+    container_name: hhagent_adminer_dev
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - hh-dev-network
 
 volumes:
   postgres_data:
+  backend_node_modules:
+
+networks:
+  hh-dev-network:
+    driver: bridge
+    name: hhagent_dev_network

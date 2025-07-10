@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import ApiService from '../services/apiService'
 import { AuthManager } from '../utils/auth'
 import { Resume } from '../types'
+
+
 export const useAuth = () => {
   const [token, setToken] = useState<string>('')
   const [resume, setResume] = useState<Resume | null>(null)

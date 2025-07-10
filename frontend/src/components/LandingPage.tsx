@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import SEOHead from './Head'
 import Footer from './Footer'
+import ApiService from '../services/apiService'
 
 interface CTASectionProps {
   onLogin: () => Promise<void>
@@ -168,17 +169,17 @@ interface LandingPageProps {}
 export default function LandingPage({}: LandingPageProps) {
   const [loading, setLoading] = useState(false)
   
-  const handleLogin = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/auth/hh`)
-      const data = await response.json()
-      window.location.href = data.url
-    } catch (error) {
-      console.error('Login error:', error)
-      setLoading(false)
-    }
+const handleLogin = async () => {
+  setLoading(true)
+  try {
+    const apiService = ApiService.getInstance()
+    const data = await apiService.getAuthUrl()
+    window.location.href = data.url
+  } catch (error) {
+    console.error('Login error:', error)
+    setLoading(false)
   }
+}
 
   return (
     <>

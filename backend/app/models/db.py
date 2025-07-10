@@ -23,6 +23,7 @@ class User(Base):
     letter_generations = relationship("LetterGeneration", back_populates="user")
     applications = relationship("Application", back_populates="user")
 
+# Обновленная модель Payment
 class Payment(Base):
     __tablename__ = "payments"
     

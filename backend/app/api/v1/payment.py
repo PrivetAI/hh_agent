@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import text  # Add this import
 from typing import Dict, Any
 import hashlib
+import logging
+import traceback
+import time
 
 from ...api.deps import get_current_user, get_db
 from ...crud.payment import PaymentCRUD
@@ -10,6 +14,9 @@ from ...models.db import User
 from ...models.schemas import PaymentCreate
 from ...core.config import settings
 from ...services.payment.robokassa import RobokassaPaymentService
+
+# Настройка логгера
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
 payment_service = RobokassaPaymentService()
@@ -21,38 +28,84 @@ async def create_payment(
     db: Session = Depends(get_db)
 ):
     """Create payment for credits package"""
-    # Create payment record
-    payment = PaymentCRUD.create(db, user.id, payment_data.package)
+    start_time = time.time()
+    logger.info(f"=== PAYMENT CREATE START === User: {user.id}, Package: {payment_data.package}")
     
-    # Get package info
-    package_info = PaymentCRUD.PACKAGES.get(payment_data.package)
-    if not package_info:
-        raise HTTPException(status_code=400, detail="Invalid package")
-    
-    # Create payment URL for Robokassa
     try:
-        payment_url = payment_service.create_payment_link(
-            payment_id=payment.id,  # Теперь это int
-            amount=float(package_info["amount"]),
-            description=f"Покупка {package_info['credits']} токенов",
-            user_email=user.email,
-            receipt_data=PaymentCRUD.get_receipt_data(payment_data.package)
-        )
+        # Проверяем подключение к БД
+        logger.info("Checking database connection...")
+        db.execute(text("SELECT 1"))  # Fix: Use text() wrapper
+        logger.info("Database connection OK")
         
-        # Update payment status to pending
-        PaymentCRUD.update_status(db, payment.id, "pending")
+        # Create payment record
+        logger.info("Creating payment record...")
+        payment = PaymentCRUD.create(db, user.id, payment_data.package)
+        logger.info(f"Payment record created with ID: {payment.id}")
         
-        return {
-            "payment_id": payment.id,  # Убрали str() преобразование
-            "payment_url": payment_url,
-            "amount": float(package_info["amount"]),
-            "credits": package_info["credits"]
-        }
+        # Get package info
+        logger.info(f"Getting package info for: {payment_data.package}")
+        package_info = PaymentCRUD.PACKAGES.get(payment_data.package)
+        if not package_info:
+            logger.error(f"Invalid package requested: {payment_data.package}")
+            logger.error(f"Available packages: {list(PaymentCRUD.PACKAGES.keys())}")
+            raise HTTPException(status_code=400, detail="Invalid package")
         
+        logger.info(f"Package info retrieved: {package_info}")
+        
+        # Create payment URL for Robokassa
+        logger.info("Creating payment URL...")
+        try:
+            payment_url = payment_service.create_payment_link(
+                payment_id=payment.id,
+                amount=float(package_info["amount"]),
+                description=f"Покупка {package_info['credits']} токенов",
+                user_email=user.email,
+                receipt_data=PaymentCRUD.get_receipt_data(payment_data.package)
+            )
+            
+            logger.info(f"Payment URL created successfully: {payment_url[:50]}...")
+            
+            # Update payment status to pending
+            logger.info("Updating payment status to pending...")
+            PaymentCRUD.update_status(db, payment.id, "pending")
+            logger.info(f"Payment {payment.id} status updated to pending")
+            
+            response_data = {
+                "payment_id": payment.id,
+                "payment_url": payment_url,
+                "amount": float(package_info["amount"]),
+                "credits": package_info["credits"]
+            }
+            
+            elapsed_time = time.time() - start_time
+            logger.info(f"=== PAYMENT CREATE SUCCESS === ID: {payment.id}, Time: {elapsed_time:.2f}s")
+            
+            return response_data
+            
+        except Exception as e:
+            logger.error(f"Failed to create payment URL for payment {payment.id}: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Mark payment as failed
+            try:
+                PaymentCRUD.update_status(db, payment.id, "failed")
+                logger.info(f"Payment {payment.id} marked as failed")
+            except Exception as update_error:
+                logger.error(f"Failed to update payment status: {update_error}")
+            
+            raise HTTPException(status_code=500, detail=f"Payment creation failed: {str(e)}")
+            
+    except HTTPException as he:
+        elapsed_time = time.time() - start_time
+        logger.error(f"=== PAYMENT CREATE HTTP ERROR === {he.status_code}: {he.detail}, Time: {elapsed_time:.2f}s")
+        raise
     except Exception as e:
-        # Mark payment as failed
-        PaymentCRUD.update_status(db, payment.id, "failed")
-        raise HTTPException(status_code=500, detail=f"Payment creation failed: {str(e)}")
+        elapsed_time = time.time() - start_time
+        logger.error(f"=== PAYMENT CREATE UNEXPECTED ERROR === {str(e)}, Time: {elapsed_time:.2f}s")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/result")
 async def payment_result(
@@ -60,74 +113,86 @@ async def payment_result(
     db: Session = Depends(get_db)
 ):
     """Handle payment result from Robokassa"""
+    logger.info("=== PAYMENT RESULT START ===")
+    
     try:
         # Get parameters from query string
         params = dict(request.query_params)
+        logger.info(f"Payment result parameters: {params}")
         
         # Verify payment result
+        logger.info("Verifying payment result signature...")
         if not payment_service.verify_payment_result(params):
+            logger.error("Invalid signature in payment result")
             raise HTTPException(status_code=400, detail="Invalid signature")
+        
+        logger.info("Payment result signature verified successfully")
         
         # Get payment by InvId
         payment_id = params.get("InvId")
         if not payment_id:
+            logger.error("No InvId in payment result")
             raise HTTPException(status_code=400, detail="No InvId in result")
         
         # Преобразуем в int
         try:
             payment_id = int(payment_id)
         except ValueError:
+            logger.error(f"Invalid InvId format: {payment_id}")
             raise HTTPException(status_code=400, detail="Invalid InvId format")
+        
+        logger.info(f"Processing payment result for payment ID: {payment_id}")
         
         payment = PaymentCRUD.get_by_id(db, payment_id)
         if not payment:
+            logger.error(f"Payment not found: {payment_id}")
             raise HTTPException(status_code=404, detail="Payment not found")
+        
+        logger.info(f"Payment found: {payment_id}, current status: {payment.status}")
+        
+        # Check if payment is already processed
+        if payment.status == "success":
+            logger.info(f"Payment {payment_id} already processed")
+            return f"OK{payment_id}"
         
         # Update payment status
         PaymentCRUD.update_status(db, payment.id, "success")
+        logger.info(f"Payment {payment_id} status updated to success")
         
         # Add credits to user
         UserCRUD.add_credits(db, payment.user_id, payment.credits)
+        logger.info(f"Added {payment.credits} credits to user {payment.user_id}")
+        
+        logger.info("=== PAYMENT RESULT SUCCESS ===")
         
         # Return success response for Robokassa
         return f"OK{payment_id}"
         
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Payment result error: {e}")
+        logger.error(f"=== PAYMENT RESULT ERROR === {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/success")
-async def payment_success(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Handle success redirect from Robokassa"""
-    try:
-        # Get parameters from query string
-        params = dict(request.query_params)
-        
-        # Verify success signature
-        if not payment_service.verify_success_url(params):
-            # Redirect to frontend with error
-            return {"redirect": f"{settings.FRONTEND_URL}/?payment=error"}
-        
-        # Redirect to frontend with success
-        return {"redirect": f"{settings.FRONTEND_URL}/?payment=success"}
-        
-    except Exception as e:
-        print(f"Payment success error: {e}")
-        return {"redirect": f"{settings.FRONTEND_URL}/?payment=error"}
 
 @router.get("/fail")
 async def payment_fail(request: Request):
     """Handle fail redirect from Robokassa"""
+    logger.info("=== PAYMENT FAIL REDIRECT ===")
+    
+    # Get parameters for logging
+    params = dict(request.query_params)
+    logger.info(f"Payment fail parameters: {params}")
+    
     # Redirect to frontend with error
     return {"redirect": f"{settings.FRONTEND_URL}/?payment=fail"}
 
 @router.get("/packages")
 async def get_packages():
     """Get available credit packages"""
-    return [
+    logger.info("=== GET PACKAGES REQUEST ===")
+    
+    packages = [
         {
             "id": "50",
             "credits": 50,
@@ -150,6 +215,9 @@ async def get_packages():
             "popular": True
         }
     ]
+    
+    logger.info(f"Returning {len(packages)} available packages")
+    return packages
 
 @router.get("/history")
 async def payment_history(
@@ -157,5 +225,14 @@ async def payment_history(
     db: Session = Depends(get_db)
 ):
     """Get user's payment history"""
-    payments = PaymentCRUD.get_user_payments(db, user.id)
-    return payments
+    logger.info(f"=== PAYMENT HISTORY REQUEST === User: {user.id}")
+    
+    try:
+        payments = PaymentCRUD.get_user_payments(db, user.id)
+        logger.info(f"Retrieved {len(payments)} payments for user {user.id}")
+        return payments
+        
+    except Exception as e:
+        logger.error(f"Error retrieving payment history for user {user.id}: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve payment history")

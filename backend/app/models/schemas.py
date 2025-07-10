@@ -27,6 +27,7 @@ class User(UserBase):
 
 
 # Payment schemas
+# Payment schemas
 class PaymentCreate(BaseModel):
     package: str  # "50", "100", "200"
 
