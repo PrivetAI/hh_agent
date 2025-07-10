@@ -27,14 +27,14 @@ const nextConfig = {
   poweredByHeader: true,
   
   // Переписывание URL для проксирования API запросов
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://backend:8000/:path*',
-      },
-    ]
-  },
+  // async rewrites() {
+  //   return [
+  //     {
+  //       source: '/api/:path*',
+  //       destination: 'http://backend:8000/:path*',
+  //     },
+  //   ]
+  // },
   
   // Настройки для hot reload
   webpack: (config, { dev, isServer }) => {

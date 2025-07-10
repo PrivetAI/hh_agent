@@ -15,10 +15,12 @@ app = FastAPI(
 
 # Статический список origins для разработки и продакшена
 origins = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3000"
     "https://hhagent.ru",
     "http://hh_frontend:3000",  # Для связи между контейнерами
 ]

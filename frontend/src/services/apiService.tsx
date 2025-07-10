@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios'
 import { AuthManager } from '../utils/auth'
 
 // Получаем BASE_URL из переменных окружения
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL 
 console.log('BASE_URL:',BASE_URL)
 // Интерфейс для AI метаданных
 interface AIMetadata {
