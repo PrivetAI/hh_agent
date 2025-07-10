@@ -125,8 +125,7 @@ class ApiService {
     return this.deduplicatedRequest(
       `auth:${code}`,
       async () => {
-        // Используем прямой axios для auth, так как это может быть до инициализации токена
-        const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, { 
+        const response = await axios.post(`/api/auth/callback`, null, { 
           params: { code },
           timeout: 30000,
         })
