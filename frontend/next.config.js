@@ -73,11 +73,11 @@ const nextConfig = {
   
   // Переписывание URL
   async rewrites() {
-    // return [
-    //   {
-    //     source: '/api/:path*',
-    //     destination: 'http://hh_backend:8000/:path*',
-    //   },
-    // ]
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://backend:8000/:path*',
+      },
+    ]
   },
 }
