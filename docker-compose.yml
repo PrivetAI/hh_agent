@@ -35,6 +35,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     container_name: hhagent_backend_dev
+    env_file:
+      - .env.development
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-hhapp}
       REDIS_URL: redis://redis:6379
@@ -86,6 +88,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: hhagent_frontend_dev
+    env_file:
+      - .env.development
     environment:
       # ВАЖНО: API_URL должен указывать на бэкенд контейнер
       NEXT_PUBLIC_API_URL: http://localhost:8000
