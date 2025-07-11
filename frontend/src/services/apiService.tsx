@@ -125,7 +125,7 @@ class ApiService {
     return this.deduplicatedRequest(
       `auth:${code}`,
       async () => {
-        const response = await axios.post(`/api/auth/callback`, null, { 
+        const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, { 
           params: { code },
           timeout: 30000,
         })

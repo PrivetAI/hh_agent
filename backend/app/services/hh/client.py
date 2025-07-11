@@ -3,19 +3,16 @@ import os
 import logging
 from fastapi import HTTPException
 from striprtf.striprtf import rtf_to_text
-
+from ...core.config import settings
 logger = logging.getLogger(__name__)
 
 class HHClient:
     def __init__(self):
-        self.client_id = os.getenv("HH_CLIENT_ID")
-        self.client_secret = os.getenv("HH_CLIENT_SECRET")
-        self.frontend_url = os.getenv("FRONTEND_URL")
         self.base_url = "https://api.hh.ru"
         
         # Проверяем наличие credentials
-        if not self.client_id or not self.client_secret:
-            logger.error(f"HH credentials missing! client_id: {bool(self.client_id)}, client_secret: {bool(self.client_secret)}")
+        if not settings.HH_CLIENT_ID or not settings.HH_CLIENT_SECRET:
+            logger.error(f"HH credentials missing! client_id: {bool(settings.HH_CLIENT_ID)}, client_secret: {bool(settings.HH_CLIENT_SECRET)}")
     
     async def get_dictionaries(self):
         """Get HH dictionaries"""
@@ -69,13 +66,13 @@ class HHClient:
             
             data = {
                 "grant_type": "authorization_code",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
+                "client_id": settings.HH_CLIENT_ID,
+                "client_secret": settings.HH_CLIENT_SECRET,
                 "code": code,
-                "redirect_uri": self.frontend_url
+                "redirect_uri": settings.FRONTEND_URL
             }
             
-            logger.info(f"POST {url}, client_id: {self.client_id}, redirect_uri: {self.frontend_url}")
+            logger.info(f"POST {url}, client_id: {settings.HH_CLIENT_ID}, redirect_uri: {settings.FRONTEND_URL}")
             
             response = await client.post(url, data=data)
             

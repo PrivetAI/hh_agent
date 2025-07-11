@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: hhagent_postgres_dev
+    env_file:
+      - .env.development
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hhapp}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -53,7 +55,7 @@ services:
       ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-true}
       ROBOKASSA_TEST_PASSWORD_1: ${ROBOKASSA_TEST_PASSWORD_1}
       ROBOKASSA_TEST_PASSWORD_2: ${ROBOKASSA_TEST_PASSWORD_2}
-      FRONTEND_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       # Переменные для разработки
       DEBUG: ${DEBUG:-true}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
