@@ -52,13 +52,16 @@ async def create_payment(
 
         # Create payment URL for Robokassa
         logger.info("Creating payment URL...")
+        logger.info(f"ROBOKASSA_TEST_MODE: {settings.ROBOKASSA_TEST_MODE}")
+        
         try:
+            # ВАЖНО: В тестовом режиме НЕ передаем чеки и email
             payment_url = payment_service.create_payment_link(
                 payment_id=payment.id,
                 amount=float(package_info["amount"]),
                 description=f"Покупка {package_info['credits']} токенов",
-                user_email=user.email,
-                receipt_data=PaymentCRUD.get_receipt_data(payment_data.package)
+                user_email=None if settings.ROBOKASSA_TEST_MODE else user.email,
+                receipt_data=None  # Никогда не передаем чеки в текущей реализации
             )
             logger.info(f"Payment URL created successfully")
             logger.info(f"Payment URL length: {len(payment_url)} characters")

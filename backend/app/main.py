@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+import logging
+import os
 from .core.database import create_tables
 from .api.v1 import auth, vacancy, payment, user
 
@@ -12,7 +13,19 @@ app = FastAPI(
     version="2.0.0",
     description="API для автоматизации откликов на вакансии с HH"
 )
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# Отладка переменных окружения
+logger.info("=== ENVIRONMENT DEBUG ===")
+logger.info(f"Working directory: {os.getcwd()}")
+logger.info(f".env.development exists: {os.path.exists('.env.development')}")
+logger.info(f"ROBOKASSA_TEST_MODE: {os.environ.get('ROBOKASSA_TEST_MODE', 'NOT SET')}")
+logger.info(f"DATABASE_URL: {'SET' if os.environ.get('DATABASE_URL') else 'NOT SET'}")
+logger.info("========================")
+
+from .core.database import create_tables
+from .api.v1 import auth, vacancy, payment, user
 # Статический список origins для разработки и продакшена
 origins = [
     "http://localhost:8000",
