@@ -2,8 +2,9 @@ import axios, { AxiosInstance } from 'axios'
 import { AuthManager } from '../utils/auth'
 
 // Получаем BASE_URL из переменных окружения
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL 
-console.log('BASE_URL:',BASE_URL)
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL
+console.log('BASE_URL:', BASE_URL)
+
 // Интерфейс для AI метаданных
 interface AIMetadata {
   prompt_filename: string
@@ -50,12 +51,12 @@ class ApiService {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
-        
+
         // Логируем запросы в dev режиме
         if (process.env.NODE_ENV === 'development') {
           console.log(`API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
         }
-        
+
         return config
       },
       error => {
@@ -77,7 +78,7 @@ class ApiService {
         if (process.env.NODE_ENV === 'development') {
           console.error('API Error:', error.response?.status, error.response?.data)
         }
-        
+
         if (error.response?.status === 401) {
           AuthManager.logout()
           window.location.href = '/'
@@ -125,11 +126,21 @@ class ApiService {
     return this.deduplicatedRequest(
       `auth:${code}`,
       async () => {
-        const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, { 
-          params: { code },
-          timeout: 30000,
-        })
-        return response.data
+        if (process.env.NODE_ENV === 'development') {
+          const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, {
+            params: { code },
+            timeout: 30000,
+          })
+          return response.data
+
+        }
+        else {
+          const response = await axios.post(`/api/auth/callback`, null, {
+            params: { code },
+            timeout: 30000,
+          })
+          return response.data
+        }
       }
     )
   }
@@ -144,7 +155,7 @@ class ApiService {
       }
     )
   }
-    
+
   // Dictionaries
   async getDictionaries() {
     return this.deduplicatedRequest(
@@ -171,7 +182,7 @@ class ApiService {
     const response = await this.axios.get('/api/vacancies', { params })
     return response.data
   }
-  
+
   async analyzeVacancy(id: string, resume_id?: string) {
     const response = await this.axios.post(`/api/vacancy/${id}/analyze`, null, {
       params: resume_id ? { resume_id } : {}
@@ -189,14 +200,14 @@ class ApiService {
 
   // Обновленный метод отправки заявки с поддержкой AI метаданных
   async applyToVacancy(
-    id: string, 
-    resume_id: string, 
-    message: string, 
+    id: string,
+    resume_id: string,
+    message: string,
     aiMetadata?: AIMetadata
   ) {
-    const payload: any = { 
-      resume_id, 
-      message 
+    const payload: any = {
+      resume_id,
+      message
     }
 
     // Добавляем AI метаданные если они есть
