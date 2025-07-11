@@ -64,11 +64,11 @@ class PaymentCRUD:
         return payment
     
     @staticmethod
-    def get_by_id(db: Session, payment_id: int) -> Optional[Payment]:  # Changed from UUID to int
+    def get_by_id(db: Session, payment_id: int) -> Optional[Payment]:
         return db.query(Payment).filter(Payment.id == payment_id).first()
     
     @staticmethod
-    def update_status(db: Session, payment_id: int, status: str, payment_ext_id: str = None) -> Optional[Payment]:  # Changed from UUID to int
+    def update_status(db: Session, payment_id: int, status: str, payment_ext_id: str = None) -> Optional[Payment]:
         values = {"status": status}
         if payment_ext_id:
             values["payment_id"] = payment_ext_id

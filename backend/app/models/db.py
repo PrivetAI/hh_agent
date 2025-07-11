@@ -23,16 +23,15 @@ class User(Base):
     letter_generations = relationship("LetterGeneration", back_populates="user")
     applications = relationship("Application", back_populates="user")
 
-# Обновленная модель Payment
 class Payment(Base):
     __tablename__ = "payments"
     
-    id = Column(Integer, primary_key=True, autoincrement=True)  # Изменено на Integer с autoincrement
+    id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     credits = Column(Integer, nullable=False)
     status = Column(String, nullable=False)  # pending, success, failed
-    payment_id = Column(String)  # Можно удалить, если не используется
+    payment_id = Column(String)  # External payment ID from Robokassa
     created_at = Column(DateTime, server_default=func.now())
     
     # Relationships
