@@ -10,38 +10,27 @@ logger = logging.getLogger(__name__)
 
 class RobokassaPaymentService:
     def __init__(self):
-        # Инициализация основных параметров
         self.merchant_login = settings.ROBOKASSA_MERCHANT_LOGIN
         self.base_url = "https://auth.robokassa.ru/Merchant/Index.aspx"
         self.test_mode = settings.ROBOKASSA_TEST_MODE
 
-        logger.info(
-            f"Initializing Robokassa: test_mode={self.test_mode}, merchant={self.merchant_login}"
-        )
-
         if self.test_mode:
-            # В тестовом режиме используем тестовые пароли
             self.password1 = settings.ROBOKASSA_TEST_PASSWORD_1 or "BCd7XYGZ42m4cbeHX6be"
             self.password2 = settings.ROBOKASSA_TEST_PASSWORD_2 or "pjXW77PQV28NP2glvHfp"
             logger.info("Robokassa initialized in TEST mode")
         else:
-            # В продакшене — рабочие пароли
             self.password1 = settings.ROBOKASSA_PASSWORD_1
             self.password2 = settings.ROBOKASSA_PASSWORD_2
             logger.info("Robokassa initialized in PRODUCTION mode")
 
-        # Если пароли не заданы — предупреждаем и ставим заглушки
         if not self.password1 or not self.password2:
-            logger.warning(
-                f"Robokassa passwords not fully configured for {'TEST' if self.test_mode else 'PROD'} mode"
-            )
+            logger.warning(f"Robokassa passwords not fully configured for {'TEST' if self.test_mode else 'PROD'} mode")
             if not self.password1:
                 self.password1 = "dummy_password1"
             if not self.password2:
                 self.password2 = "dummy_password2"
 
     def _generate_signature(self, *args) -> str:
-        """Генерация MD5 подписи из аргументов, разделённых двоеточиями"""
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
         logger.debug(f"Signature string: {signature_string}")
         return hashlib.md5(signature_string.encode("utf-8")).hexdigest()
@@ -54,18 +43,12 @@ class RobokassaPaymentService:
         user_email: str = None,
         receipt_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Формируем ссылку на оплату, добавляя чек для фискализации при необходимости"""
-        out_sum = f"{amount:.2f}"  # Сумма в формате 2 знака
+        out_sum = f"{amount:.2f}"
         inv_id = str(payment_id)
-        logger.info(
-            f"Creating payment link in {'TEST' if self.test_mode else 'PRODUCTION'} mode"
-        )
+        logger.info(f"Creating payment link in {'TEST' if self.test_mode else 'PRODUCTION'} mode")
 
         if self.test_mode:
-            # В тесте — простая подпись без чека
-            sig = self._generate_signature(
-                self.merchant_login, out_sum, inv_id, self.password1
-            )
+            sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
             params = {
                 "MerchantLogin": self.merchant_login,
                 "OutSum": out_sum,
@@ -77,7 +60,6 @@ class RobokassaPaymentService:
                 params["Description"] = description
 
         else:
-            # Продакшн — собираем параметры
             params = {
                 "MerchantLogin": self.merchant_login,
                 "OutSum": out_sum,
@@ -90,32 +72,24 @@ class RobokassaPaymentService:
                 params["Email"] = user_email
 
             if receipt_data:
-                receipt_json = json.dumps(
-                    receipt_data, ensure_ascii=False, separators=(",", ":")
-                )
+                # Формируем JSON чека с компактными разделителями
+                receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(",", ":"))
+                logger.info(f"Receipt JSON: {receipt_json}")  # Логируем точное значение receipt_json
 
-                # Строка для MD5 включает «сырой» JSON
-                raw_sig_str = ":".join([
-                    self.merchant_login,
-                    out_sum,
-                    inv_id,
-                    receipt_json,
-                    self.password1
-                ])
-                logger.debug("String for MD5: %s", raw_sig_str)
-                sig = hashlib.md5(raw_sig_str.encode("utf-8")).hexdigest()
-                logger.debug("Calculated signature: %s", sig)
+                # Формируем строку для подписи
+                sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_json}:{self.password1}"
+                logger.debug(f"Signature string for MD5: {sig_str}")
+                sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()
+                logger.debug(f"Calculated signature: {sig}")
 
-                # В параметры URL кладём JSON, а не закодированную строку
+                # Добавляем receipt_json в параметры
                 params["Receipt"] = receipt_json
             else:
-                sig = self._generate_signature(
-                    self.merchant_login, out_sum, inv_id, self.password1
-                )
+                sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
 
             params["SignatureValue"] = sig
 
-        # Генерируем финальную ссылку с корректным URL-encoding
+        # Генерируем URL
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
         logger.info(f"Payment URL created, length: {len(url)} chars")
         return url
