@@ -35,6 +35,14 @@ class RobokassaPaymentService:
         logger.debug(f"Signature string: {signature_string}")
         return hashlib.md5(signature_string.encode("utf-8")).hexdigest()
 
+    def _format_amount(self, amount: float) -> str:
+        """Форматирует сумму корректно для Robokassa"""
+        # Убираем лишние нули после запятой
+        formatted = f"{amount:.2f}".rstrip('0').rstrip('.')
+        if '.' not in formatted:
+            formatted += '.00'
+        return formatted
+
     def create_payment_link(
         self,
         payment_id: int,
@@ -43,9 +51,11 @@ class RobokassaPaymentService:
         user_email: str = None,
         receipt_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        out_sum = f"{amount:.2f}"
+        # Исправляем формат суммы
+        out_sum = self._format_amount(amount)
         inv_id = str(payment_id)
         logger.info(f"Creating payment link in {'TEST' if self.test_mode else 'PRODUCTION'} mode")
+        logger.info(f"Amount: {amount} -> OutSum: {out_sum}")
 
         if self.test_mode:
             sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
@@ -72,19 +82,20 @@ class RobokassaPaymentService:
                 params["Email"] = user_email
 
             if receipt_data:
-                # Формируем JSON чека с компактными разделителями
+                # Формируем JSON чека с правильными разделителями
                 receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(",", ":"))
-                logger.info(f"Receipt JSON: {receipt_json}")  # Логируем точное значение receipt_json
-
-                # Формируем строку для подписи
+                logger.info(f"Receipt JSON: {receipt_json}")
+                
+                # ИСПРАВЛЕНО: Правильный порядок параметров для подписи с чеком
+                # Для production с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
                 sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_json}:{self.password1}"
                 logger.debug(f"Signature string for MD5: {sig_str}")
                 sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()
                 logger.debug(f"Calculated signature: {sig}")
 
-                # Добавляем receipt_json в параметры
                 params["Receipt"] = receipt_json
             else:
+                # Для production без чека: MerchantLogin:OutSum:InvId:Password1
                 sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
 
             params["SignatureValue"] = sig
@@ -92,6 +103,10 @@ class RobokassaPaymentService:
         # Генерируем URL
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
         logger.info(f"Payment URL created, length: {len(url)} chars")
+        
+        # Дополнительная отладка
+        logger.debug(f"Final params: {params}")
+        
         return url
 
     def verify_payment_result(self, data: Dict[str, Any]) -> bool:
@@ -99,21 +114,40 @@ class RobokassaPaymentService:
         out_sum = data.get("OutSum", "")
         inv_id = data.get("InvId", "")
         received_sig = data.get("SignatureValue", "").lower()
+        
         if not (out_sum and inv_id and received_sig):
+            logger.error("Missing required parameters for payment result verification")
             return False
+
+        # Форматируем сумму так же, как при создании платежа
+        if isinstance(out_sum, str):
+            try:
+                out_sum = self._format_amount(float(out_sum))
+            except ValueError:
+                logger.error(f"Invalid OutSum format: {out_sum}")
+                return False
 
         # Собираем параметры shps и Receipt
         shp_parts = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
         parts = [out_sum, inv_id]
+        
         if data.get("Receipt"):
             parts.append(data["Receipt"])
+            
         parts += [f"{k}={v}" for k, v in shp_parts]
         parts.append(self.password2)
 
         expected = hashlib.md5(":".join(parts).encode("utf-8")).hexdigest().lower()
         match = received_sig == expected
+        
         if not match:
-            logger.warning(f"Payment result signature mismatch: expected {expected}, got {received_sig}")
+            logger.warning(f"Payment result signature mismatch")
+            logger.warning(f"Expected: {expected}")
+            logger.warning(f"Received: {received_sig}")
+            logger.warning(f"Signature parts: {parts}")
+        else:
+            logger.info("Payment result signature verified successfully")
+            
         return match
 
     def verify_success_url(self, data: Dict[str, Any]) -> bool:
@@ -121,15 +155,37 @@ class RobokassaPaymentService:
         out_sum = data.get("OutSum", "")
         inv_id = data.get("InvId", "")
         received_sig = data.get("SignatureValue", "").lower()
+        
         if not (out_sum and inv_id and received_sig):
+            logger.error("Missing required parameters for success URL verification")
             return False
+
+        # Форматируем сумму так же, как при создании платежа
+        if isinstance(out_sum, str):
+            try:
+                out_sum = self._format_amount(float(out_sum))
+            except ValueError:
+                logger.error(f"Invalid OutSum format: {out_sum}")
+                return False
 
         shp_parts = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
         parts = [out_sum, inv_id]
+        
         if data.get("Receipt"):
             parts.append(data["Receipt"])
+            
         parts += [f"{k}={v}" for k, v in shp_parts]
         parts.append(self.password1)
 
         expected = hashlib.md5(":".join(parts).encode("utf-8")).hexdigest().lower()
-        return received_sig == expected
+        match = received_sig == expected
+        
+        if not match:
+            logger.warning(f"Success URL signature mismatch")
+            logger.warning(f"Expected: {expected}")
+            logger.warning(f"Received: {received_sig}")
+            logger.warning(f"Signature parts: {parts}")
+        else:
+            logger.info("Success URL signature verified successfully")
+            
+        return match
