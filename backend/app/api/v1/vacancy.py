@@ -15,7 +15,7 @@ import logging
 from ...models.schemas import (
     CoverLetter,
 )
-from ...models.schemas import ApplicationCreate  # Добавить импорт
+from ...models.schemas import ApplicationCreate
 
 router = APIRouter(prefix="/api", tags=["vacancy"])
 hh_service = HHService()
@@ -83,14 +83,11 @@ async def analyze_vacancy(
     )
 
 
-
-# Метод generate_letter СО списанием кредитов:
-
 @router.post("/vacancy/{vacancy_id}/generate-letter", response_model=CoverLetter)
 async def generate_letter(
     vacancy_id: str,
     resume_id: Optional[str] = None,
-    user: User = Depends(check_user_credits),  # Проверяем наличие кредитов
+    user: User = Depends(check_user_credits),
     db: Session = Depends(get_db)
 ):
     """Generate cover letter for vacancy (costs 1 credit)"""
@@ -139,7 +136,7 @@ async def generate_letter(
 async def apply_to_vacancy(
     vacancy_id: str,
     application_data: ApplicationCreate,
-    user: User = Depends(get_current_user),  # Изменено обратно на get_current_user
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Apply to vacancy with cover letter (FREE, credits already charged on generation)"""
@@ -153,8 +150,16 @@ async def apply_to_vacancy(
         )
     
     error_message = None
+    vacancy_title = "Неизвестная вакансия"
     
     try:
+        # Получаем информацию о вакансии для истории
+        try:
+            vacancy = await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
+            vacancy_title = vacancy.get("name", "Неизвестная вакансия")
+        except:
+            logger.warning(f"Could not get vacancy details for {vacancy_id}")
+        
         # Получаем токен
         token = await hh_service.redis_service.get_user_token(user.hh_user_id)
         if not token:
@@ -175,43 +180,56 @@ async def apply_to_vacancy(
             vacancy_id=vacancy_id,
             resume_id=application_data.resume_id,
             message=application_data.message,
-            prompt_filename=application_data.prompt_filename,  # Сохраняем какой промпт использовался
-            ai_model=application_data.ai_model  # Сохраняем какая модель использовалась
+            prompt_filename=application_data.prompt_filename,
+            ai_model=application_data.ai_model
         )
+        
+        # Сохраняем в историю отправленных писем (только после успешной отправки)
+        if application_data.prompt_filename and application_data.ai_model:
+            LetterGenerationCRUD.save_letter_generation(
+                db=db,
+                user_id=user.id,
+                vacancy_id=vacancy_id,
+                vacancy_title=vacancy_title,
+                resume_id=application_data.resume_id,
+                letter_content=application_data.message,
+                prompt_filename=application_data.prompt_filename,
+                ai_model=application_data.ai_model
+            )
         
         logger.info(f"Application sent successfully for user {user.id} to vacancy {vacancy_id}")
         
         return {"status": "success", "message": "Отклик успешно отправлен"}
         
     except HTTPException as http_exc:
-        # Сохраняем информацию об ошибке
+        # При ошибке НЕ сохраняем в историю писем, только в applications
         error_message = f"HTTP Error: {http_exc.detail}"
         logger.error(f"HTTP error applying to vacancy: {error_message}")
         
-        # Сохраняем в БД с информацией об ошибке
+        # Сохраняем в БД applications с информацией об ошибке
         ApplicationCRUD.create(
             db,
             user_id=user.id,
             vacancy_id=vacancy_id,
             resume_id=application_data.resume_id,
-            message=error_message, # Сохраняем ошибку
+            message=error_message,
             prompt_filename=application_data.prompt_filename,
             ai_model=application_data.ai_model
         )
         
         raise http_exc
     except Exception as e:
-        # Сохраняем информацию об ошибке
+        # При ошибке НЕ сохраняем в историю писем
         error_message = f"General Error: {str(e)}"
         logger.error(f"Error applying to vacancy: {error_message}")
         
-        # Сохраняем в БД с информацией об ошибке
+        # Сохраняем в БД applications с информацией об ошибке
         ApplicationCRUD.create(
             db,
             user_id=user.id,
             vacancy_id=vacancy_id,
             resume_id=application_data.resume_id,
-            error=error_message,  # Сохраняем ошибку
+            message=error_message,
             prompt_filename=application_data.prompt_filename,
             ai_model=application_data.ai_model
         )
@@ -225,6 +243,6 @@ async def apply_to_vacancy(
 async def get_history(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    """Get user's letter generation history"""
+    """Get user's sent letters history"""
     history = LetterGenerationCRUD.get_user_history(db, user.id)
     return history

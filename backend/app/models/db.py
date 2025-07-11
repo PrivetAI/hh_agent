@@ -26,7 +26,7 @@ class User(Base):
 class Payment(Base):
     __tablename__ = "payments"
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Обязательно INTEGER для Robokassa InvId
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     credits = Column(Integer, nullable=False)
@@ -36,7 +36,7 @@ class Payment(Base):
     
     # Relationships
     user = relationship("User", back_populates="payments")
-
+    
 class LetterGeneration(Base):  # НЕ BaseModel, а Base!
     __tablename__ = "letter_generations"
     
