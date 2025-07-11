@@ -14,7 +14,6 @@ from ...models.schemas import PaymentCreate
 from ...core.config import settings
 from ...services.payment.robokassa import RobokassaPaymentService
 
-# Настройка логгера
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
@@ -31,42 +30,40 @@ async def create_payment(
     logger.info(f"=== PAYMENT CREATE START === User: {user.id}, Package: {payment_data.package}")
 
     try:
-        # Проверяем подключение к БД
         logger.info("Checking database connection...")
         db.execute(text("SELECT 1"))
         logger.info("Database connection OK")
 
-        # Create payment record
         logger.info("Creating payment record...")
         payment = PaymentCRUD.create(db, user.id, payment_data.package)
         logger.info(f"Payment record created with ID: {payment.id}")
 
-        # Get package info
         logger.info(f"Getting package info for: {payment_data.package}")
         package_info = PaymentCRUD.PACKAGES.get(payment_data.package)
         if not package_info:
             logger.error(f"Invalid package requested: {payment_data.package}")
-            logger.error(f"Available packages: {list(PaymentCRUD.PACKAGES.keys())}")
             raise HTTPException(status_code=400, detail="Invalid package")
         logger.info(f"Package info retrieved: {package_info}")
 
-        # Create payment URL for Robokassa
         logger.info("Creating payment URL...")
         logger.info(f"ROBOKASSA_TEST_MODE: {settings.ROBOKASSA_TEST_MODE}")
         
         try:
-            # ВАЖНО: В тестовом режиме НЕ передаем чеки и email
+            # Получаем данные чека для продакшн режима
+            receipt_data = None
+            if not settings.ROBOKASSA_TEST_MODE:
+                receipt_data = PaymentCRUD.get_receipt_data(payment_data.package)
+                logger.info(f"Receipt data generated for production mode")
+            
             payment_url = payment_service.create_payment_link(
                 payment_id=payment.id,
                 amount=float(package_info["amount"]),
                 description=f"Покупка {package_info['credits']} токенов",
                 user_email=None if settings.ROBOKASSA_TEST_MODE else user.email,
-                receipt_data=None  # Никогда не передаем чеки в текущей реализации
+                receipt_data=receipt_data
             )
             logger.info(f"Payment URL created successfully")
-            logger.info(f"Payment URL length: {len(payment_url)} characters")
 
-            # Update payment status to pending
             logger.info("Updating payment status to pending...")
             PaymentCRUD.update_status(db, payment.id, "pending")
             logger.info(f"Payment {payment.id} status updated to pending")
@@ -85,10 +82,8 @@ async def create_payment(
 
         except Exception as e:
             logger.error(f"Failed to create payment URL for payment {payment.id}: {e}")
-            logger.error(f"Exception type: {type(e).__name__}")
             logger.error(f"Traceback: {traceback.format_exc()}")
 
-            # Mark payment as failed
             try:
                 PaymentCRUD.update_status(db, payment.id, "failed")
                 logger.info(f"Payment {payment.id} marked as failed")
@@ -117,24 +112,19 @@ async def payment_result(
     logger.info("=== PAYMENT RESULT START ===")
 
     try:
-        # Get parameters from query string
         params = dict(request.query_params)
         logger.info(f"Payment result parameters received: {list(params.keys())}")
         
-        # Log individual parameters (безопасно для отладки)
         for key, value in params.items():
-            if key.lower() != 'signaturevalue':  # Не логируем подпись
+            if key.lower() != 'signaturevalue':
                 logger.info(f"Parameter {key}: {value}")
 
-        # Verify payment result signature
         logger.info("Verifying payment result signature...")
         if not payment_service.verify_payment_result(params):
             logger.error("Invalid signature in payment result")
-            logger.error(f"Received signature: {params.get('SignatureValue', 'NOT_PROVIDED')}")
             raise HTTPException(status_code=400, detail="Invalid signature")
         logger.info("Payment result signature verified successfully")
 
-        # Extract and validate InvId
         inv_id = params.get("InvId")
         if not inv_id:
             logger.error("No InvId in payment result")
@@ -146,19 +136,16 @@ async def payment_result(
             raise HTTPException(status_code=400, detail="Invalid InvId format")
         logger.info(f"Processing payment result for payment ID: {payment_id}")
 
-        # Fetch payment record
         payment = PaymentCRUD.get_by_id(db, payment_id)
         if not payment:
             logger.error(f"Payment not found: {payment_id}")
             raise HTTPException(status_code=404, detail="Payment not found")
         logger.info(f"Payment found: {payment_id}, current status: {payment.status}")
 
-        # If already success, skip processing but still return OK
         if payment.status == "success":
             logger.info(f"Payment {payment_id} already processed successfully")
             return f"OK{payment_id}"
 
-        # Update status & grant credits
         logger.info(f"Updating payment {payment_id} status to success...")
         PaymentCRUD.update_status(db, payment_id, "success")
         logger.info(f"Payment {payment_id} status updated to success")
@@ -185,7 +172,6 @@ async def payment_success(request: Request):
     params = dict(request.query_params)
     logger.info(f"Payment success parameters: {list(params.keys())}")
     
-    # Verify success URL signature (опционально)
     try:
         if payment_service.verify_success_url(params):
             logger.info("Success URL signature verified")
