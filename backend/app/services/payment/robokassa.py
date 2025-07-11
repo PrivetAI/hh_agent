@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from typing import Dict, Any, Optional
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, quote_plus
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -48,13 +48,14 @@ class RobokassaPaymentService:
         user_email: str = None,
         receipt_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create payment link"""
+        """Create payment link with optional receipt for fiscalization"""
         out_sum = f"{amount:.2f}"
         inv_id = str(payment_id)
 
         logger.info(f"Creating payment link in {'TEST' if self.test_mode else 'PRODUCTION'} mode")
         
         if self.test_mode:
+            # В тестовом режиме чеки не поддерживаются
             signature = self._generate_signature(
                 self.merchant_login,
                 out_sum,
@@ -74,6 +75,7 @@ class RobokassaPaymentService:
                 params["Description"] = description
                 
         else:
+            # Production mode with receipt support
             params = {
                 "MerchantLogin": self.merchant_login,
                 "OutSum": out_sum,
@@ -86,23 +88,49 @@ class RobokassaPaymentService:
             if user_email:
                 params["Email"] = user_email
             
-            sig_parts = [self.merchant_login, out_sum, inv_id]
+            # Формируем подпись БЕЗ чека сначала
+            signature = self._generate_signature(
+                self.merchant_login,
+                out_sum,
+                inv_id,
+                self.password1
+            )
             
-            # Добавляем чек в продакшн режиме
+            # Добавляем чек если есть
             if receipt_data:
+                # Сериализуем чек в JSON без пробелов
                 receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(',', ':'))
-                params["Receipt"] = receipt_json
-                sig_parts.append(receipt_json)
-                logger.info(f"Receipt data added to payment: {receipt_json}")
+                
+                # URL-кодируем чек для передачи в параметрах
+                receipt_encoded = quote_plus(receipt_json)
+                params["Receipt"] = receipt_encoded
+                
+                # Пересчитываем подпись С чеком (чек в незакодированном виде)
+                signature = self._generate_signature(
+                    self.merchant_login,
+                    out_sum,
+                    inv_id,
+                    receipt_json,  # Важно: в подпись идет НЕзакодированный JSON
+                    self.password1
+                )
+                
+                logger.info(f"Receipt added to payment, length: {len(receipt_json)} chars")
+                logger.debug(f"Receipt JSON: {receipt_json}")
             
-            sig_parts.append(self.password1)
-            
-            signature = self._generate_signature(*sig_parts)
             params["SignatureValue"] = signature
 
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
-        url = f"{self.base_url}?{urlencode(params, safe='')}"
-        logger.info(f"Payment URL: {url[:100]}...")
+        
+        # Формируем URL (urlencode сам закодирует параметры, но Receipt уже закодирован)
+        if "Receipt" in params:
+            # Для Receipt используем уже закодированное значение
+            receipt_value = params.pop("Receipt")
+            url_params = urlencode(params, safe='')
+            url = f"{self.base_url}?{url_params}&Receipt={receipt_value}"
+        else:
+            url = f"{self.base_url}?{urlencode(params, safe='')}"
+            
+        logger.info(f"Payment URL created, length: {len(url)} chars")
         
         return url
 
@@ -116,13 +144,24 @@ class RobokassaPaymentService:
             logger.warning("Missing required fields for payment verification")
             return False
         
+        # Базовая подпись без дополнительных параметров
         expected = self._generate_signature(out_sum, inv_id, self.password2).lower()
         
+        # Проверяем наличие дополнительных параметров (включая Receipt)
         shp_params = sorted([(k, v) for k, v in data.items() if k.startswith('shp_')])
-        if shp_params:
+        receipt = data.get('Receipt')
+        
+        if shp_params or receipt:
             sig_parts = [out_sum, inv_id]
+            
+            # Добавляем Receipt если есть (должен быть первым после основных параметров)
+            if receipt:
+                sig_parts.append(receipt)
+            
+            # Добавляем shp_ параметры
             for key, value in shp_params:
                 sig_parts.append(f"{key}={value}")
+                
             sig_parts.append(self.password2)
             expected = self._generate_signature(*sig_parts).lower()
         
@@ -130,7 +169,7 @@ class RobokassaPaymentService:
         
         if not result:
             logger.warning(f"Signature mismatch. Expected: {expected}, Got: {signature}")
-            logger.warning(f"Data: OutSum={out_sum}, InvId={inv_id}")
+            logger.warning(f"Data: OutSum={out_sum}, InvId={inv_id}, Receipt={'present' if receipt else 'absent'}")
         
         return result
 
@@ -143,13 +182,24 @@ class RobokassaPaymentService:
         if not all([out_sum, inv_id, signature]):
             return False
         
+        # Базовая подпись без дополнительных параметров
         expected = self._generate_signature(out_sum, inv_id, self.password1).lower()
         
+        # Проверяем наличие дополнительных параметров (включая Receipt)
         shp_params = sorted([(k, v) for k, v in data.items() if k.startswith('shp_')])
-        if shp_params:
+        receipt = data.get('Receipt')
+        
+        if shp_params or receipt:
             sig_parts = [out_sum, inv_id]
+            
+            # Добавляем Receipt если есть
+            if receipt:
+                sig_parts.append(receipt)
+            
+            # Добавляем shp_ параметры
             for key, value in shp_params:
                 sig_parts.append(f"{key}={value}")
+                
             sig_parts.append(self.password1)
             expected = self._generate_signature(*sig_parts).lower()
         

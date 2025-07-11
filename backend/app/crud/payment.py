@@ -3,9 +3,13 @@ from sqlalchemy import update
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
+import logging
 
 from ..models.db import Payment, LetterGeneration
 from ..models.schemas import PaymentCreate
+from ..services.payment.receipt_validator import ReceiptValidator
+
+logger = logging.getLogger(__name__)
 
 class PaymentCRUD:
     # Пакеты кредитов
@@ -16,25 +20,31 @@ class PaymentCRUD:
     }
     
     @staticmethod
-    def get_receipt_data(package: str) -> Dict[str, Any]:
-        """Generate receipt data for Robokassa fiscalization"""
+    def get_receipt_data(package: str, user_email: Optional[str] = None) -> Dict[str, Any]:
+        """Generate receipt data for Robokassa fiscalization according to 54-FZ"""
         package_info = PaymentCRUD.PACKAGES.get(package)
         if not package_info:
-            raise ValueError("Invalid package")
+            raise ValueError(f"Invalid package: {package}")
         
-        return {
-            "sno": "usn_income",  # Система налогообложения (УСН доходы)
-            "items": [
-                {
-                    "name": f"Токены для генерации писем ({package_info['credits']} шт.)",
-                    "quantity": 1,
-                    "sum": float(package_info["amount"]),
-                    "payment_method": "full_prepayment",  # Предоплата 100%
-                    "payment_object": "service",  # Услуга
-                    "tax": "none"  # Без НДС
-                }
-            ]
-        }
+        # Генерируем чек через валидатор
+        receipt = ReceiptValidator.generate_receipt(
+            package_name=f"Пакет {package}",
+            credits=package_info["credits"],
+            amount=float(package_info["amount"]),
+            user_email=user_email,
+            sno="usn_income"  # УСН доходы
+        )
+        
+        # Валидируем чек
+        errors = ReceiptValidator.validate_receipt(receipt)
+        if errors:
+            logger.error(f"Receipt validation errors: {errors}")
+            # В продакшене можно кинуть исключение
+            # raise ValueError(f"Invalid receipt: {', '.join(errors)}")
+        else:
+            logger.info(f"Receipt validated successfully for package {package}")
+        
+        return receipt
     
     @staticmethod
     def create(db: Session, user_id: UUID, package: str) -> Payment:

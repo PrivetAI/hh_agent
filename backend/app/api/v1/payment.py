@@ -49,11 +49,14 @@ async def create_payment(
         logger.info(f"ROBOKASSA_TEST_MODE: {settings.ROBOKASSA_TEST_MODE}")
         
         try:
-            # Получаем данные чека для продакшн режима
+           # Получаем данные чека для продакшн режима
             receipt_data = None
             if not settings.ROBOKASSA_TEST_MODE:
-                receipt_data = PaymentCRUD.get_receipt_data(payment_data.package)
-                logger.info(f"Receipt data generated for production mode")
+                receipt_data = PaymentCRUD.get_receipt_data(
+                    payment_data.package,
+                    user_email=user.email
+                )
+                logger.info(f"Receipt data generated for production mode with email: {user.email}")
             
             payment_url = payment_service.create_payment_link(
                 payment_id=payment.id,
