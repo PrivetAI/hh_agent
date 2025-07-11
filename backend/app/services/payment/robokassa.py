@@ -112,16 +112,16 @@ class RobokassaPaymentService:
                 # Сериализуем чек в JSON без пробелов
                 receipt_json = json.dumps(cleaned_receipt, ensure_ascii=False, separators=(',', ':'))
                 
-                # Подпись с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
+                # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Подпись БЕЗ чека!
+                # По документации, при наличии Receipt подпись формируется БЕЗ включения Receipt
                 signature = self._generate_signature(
                     self.merchant_login,
                     out_sum,
                     inv_id,
-                    receipt_json,  # JSON чека в незакодированном виде для подписи
                     self.password1
                 )
                 
-                # Для параметра Receipt используем обычную строку JSON
+                # Добавляем чек как отдельный параметр
                 params["Receipt"] = receipt_json
                 
                 logger.info(f"Receipt added to payment, length: {len(receipt_json)} chars")
