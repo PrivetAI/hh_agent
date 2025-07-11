@@ -88,47 +88,41 @@ class RobokassaPaymentService:
             if user_email:
                 params["Email"] = user_email
             
-            # Формируем подпись БЕЗ чека сначала
-            signature = self._generate_signature(
-                self.merchant_login,
-                out_sum,
-                inv_id,
-                self.password1
-            )
-            
-            # Добавляем чек если есть
+            # Формируем подпись
             if receipt_data:
+                # Если есть чек, включаем его в подпись
                 # Сериализуем чек в JSON без пробелов
                 receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(',', ':'))
                 
-                # URL-кодируем чек для передачи в параметрах
-                receipt_encoded = quote_plus(receipt_json)
-                params["Receipt"] = receipt_encoded
-                
-                # Пересчитываем подпись С чеком (чек в незакодированном виде)
+                # Подпись с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
                 signature = self._generate_signature(
                     self.merchant_login,
                     out_sum,
                     inv_id,
-                    receipt_json,  # Важно: в подпись идет НЕзакодированный JSON
+                    receipt_json,  # JSON чека в незакодированном виде
                     self.password1
                 )
                 
+                # URL-кодируем чек для передачи в параметрах
+                params["Receipt"] = quote(receipt_json, safe='')
+                
                 logger.info(f"Receipt added to payment, length: {len(receipt_json)} chars")
                 logger.debug(f"Receipt JSON: {receipt_json}")
+            else:
+                # Подпись без чека: MerchantLogin:OutSum:InvId:Password1
+                signature = self._generate_signature(
+                    self.merchant_login,
+                    out_sum,
+                    inv_id,
+                    self.password1
+                )
             
             params["SignatureValue"] = signature
-
+    
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
         
-        # Формируем URL (urlencode сам закодирует параметры, но Receipt уже закодирован)
-        if "Receipt" in params:
-            # Для Receipt используем уже закодированное значение
-            receipt_value = params.pop("Receipt")
-            url_params = urlencode(params, safe='')
-            url = f"{self.base_url}?{url_params}&Receipt={receipt_value}"
-        else:
-            url = f"{self.base_url}?{urlencode(params, safe='')}"
+        # Формируем URL
+        url = f"{self.base_url}?{urlencode(params, safe='')}"
             
         logger.info(f"Payment URL created, length: {len(url)} chars")
         
