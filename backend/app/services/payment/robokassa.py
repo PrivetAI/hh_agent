@@ -118,13 +118,12 @@ class RobokassaPaymentService:
                     cleaned_receipt, ensure_ascii=False, separators=(",", ":")
                 )
                 # URL‑кодируем для расчёта подписи
-                encoded_receipt = quote_plus(receipt_json)
                 # Контрольная подпись с включённым Receipt
                 signature = self._generate_signature(
                     self.merchant_login,
                     out_sum,
                     inv_id,
-                    encoded_receipt,
+                    receipt_json,
                     self.password1,
                 )
                 # В параметры кладём оригинальный JSON
@@ -137,12 +136,16 @@ class RobokassaPaymentService:
 
             params["SignatureValue"] = signature
             
+        logger.debug("Raw receipt JSON   : %s", receipt_json)
+        logger.debug("String for MD5      : %s:%s:%s:%s:%s",
+                     self.merchant_login, out_sum, inv_id, receipt_json, self.password1)
+        logger.debug("Calculated signature: %s", signature)
 
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
 
         # Используем urlencode с правильными параметрами
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
-           
+   
         logger.info(f"Payment URL created, length: {len(url)} chars")
 
         return url
