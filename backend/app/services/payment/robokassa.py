@@ -136,14 +136,13 @@ class RobokassaPaymentService:
                 )
 
             params["SignatureValue"] = signature
-            url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
-            return url
+            
 
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
 
         # Используем urlencode с правильными параметрами
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
-
+           
         logger.info(f"Payment URL created, length: {len(url)} chars")
 
         return url
