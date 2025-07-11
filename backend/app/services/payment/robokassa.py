@@ -90,21 +90,21 @@ class RobokassaPaymentService:
             
             # Формируем подпись
             if receipt_data:
-                # Если есть чек, включаем его в подпись
                 # Сериализуем чек в JSON без пробелов
                 receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(',', ':'))
                 
-                # Подпись с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
+                # ИСПРАВЛЕНИЕ: Подпись с чеком формируется БЕЗ URL-кодирования
                 signature = self._generate_signature(
                     self.merchant_login,
                     out_sum,
                     inv_id,
-                    receipt_json,  # JSON чека в незакодированном виде
+                    receipt_json,  # JSON чека в незакодированном виде для подписи
                     self.password1
                 )
                 
-                # URL-кодируем чек для передачи в параметрах
-                params["Receipt"] = quote(receipt_json, safe='')
+                # ИСПРАВЛЕНИЕ: Для параметра Receipt используем обычную строку JSON
+                # urlencode сам закодирует при формировании URL
+                params["Receipt"] = receipt_json
                 
                 logger.info(f"Receipt added to payment, length: {len(receipt_json)} chars")
                 logger.debug(f"Receipt JSON: {receipt_json}")
@@ -121,8 +121,9 @@ class RobokassaPaymentService:
     
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
         
-        # Формируем URL
-        url = f"{self.base_url}?{urlencode(params, safe='')}"
+        # ИСПРАВЛЕНИЕ: Используем urlencode с правильными параметрами
+        # urlencode автоматически корректно закодирует все параметры
+        url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
             
         logger.info(f"Payment URL created, length: {len(url)} chars")
         
