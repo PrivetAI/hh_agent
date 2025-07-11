@@ -136,10 +136,16 @@ class RobokassaPaymentService:
 
             params["SignatureValue"] = signature
             
-        logger.debug("Raw receipt JSON   : %s", receipt_json)
-        logger.debug("String for MD5      : %s:%s:%s:%s:%s",
-                     self.merchant_login, out_sum, inv_id, receipt_json, self.password1)
-        logger.debug("Calculated signature: %s", signature)
+        raw_string = ":".join([
+            self.merchant_login,
+            out_sum,
+            inv_id,
+            receipt_json,     # без urlencode!
+            self.password1
+        ])
+        logger.debug(">> String for MD5: %s", raw_string)
+        signature = hashlib.md5(raw_string.encode('utf-8')).hexdigest()
+        logger.debug(">> Calculated signature: %s", signature)
 
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
 
