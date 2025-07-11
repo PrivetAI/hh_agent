@@ -151,7 +151,6 @@ class ReceiptValidator:
     
     @staticmethod
     def generate_receipt(
-        package_name: str,
         credits: int,
         amount: float,
         user_email: Optional[str] = None,
@@ -171,7 +170,7 @@ class ReceiptValidator:
             "sno": sno,
             "items": [
                 {
-                    "name": f"Пакет токенов \"{package_name}\" ({credits} шт.)",
+                    "name": f"Токены для генерации ({credits} шт.)",
                     "quantity": 1.0,
                     "sum": float(amount),
                     "payment_method": "full_prepayment",

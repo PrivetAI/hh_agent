@@ -28,7 +28,6 @@ class PaymentCRUD:
         
         # Генерируем чек через валидатор
         receipt = ReceiptValidator.generate_receipt(
-            package_name=f"Пакет {package}",
             credits=package_info["credits"],
             amount=float(package_info["amount"]),
             user_email=user_email,
