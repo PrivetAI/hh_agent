@@ -1,9 +1,8 @@
 import hashlib
 import json
 import logging
-import os
 from typing import Dict, Any, Optional
-from urllib.parse import quote, urlencode, quote_plus
+from urllib.parse import urlencode, quote_plus
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -11,27 +10,27 @@ logger = logging.getLogger(__name__)
 
 class RobokassaPaymentService:
     def __init__(self):
+        # Инициализация основных параметров
         self.merchant_login = settings.ROBOKASSA_MERCHANT_LOGIN
         self.base_url = "https://auth.robokassa.ru/Merchant/Index.aspx"
-
         self.test_mode = settings.ROBOKASSA_TEST_MODE
 
         logger.info(
             f"Initializing Robokassa: test_mode={self.test_mode}, merchant={self.merchant_login}"
         )
+
         if self.test_mode:
-            self.password1 = (
-                settings.ROBOKASSA_TEST_PASSWORD_1 or "BCd7XYGZ42m4cbeHX6be"
-            )
-            self.password2 = (
-                settings.ROBOKASSA_TEST_PASSWORD_2 or "pjXW77PQV28NP2glvHfp"
-            )
-            logger.info(f"Robokassa initialized in TEST mode")
+            # В тестовом режиме используем тестовые пароли
+            self.password1 = settings.ROBOKASSA_TEST_PASSWORD_1 or "BCd7XYGZ42m4cbeHX6be"
+            self.password2 = settings.ROBOKASSA_TEST_PASSWORD_2 or "pjXW77PQV28NP2glvHfp"
+            logger.info("Robokassa initialized in TEST mode")
         else:
+            # В продакшене — рабочие пароли
             self.password1 = settings.ROBOKASSA_PASSWORD_1
             self.password2 = settings.ROBOKASSA_PASSWORD_2
-            logger.info(f"Robokassa initialized in PRODUCTION mode")
+            logger.info("Robokassa initialized in PRODUCTION mode")
 
+        # Если пароли не заданы — предупреждаем и ставим заглушки
         if not self.password1 or not self.password2:
             logger.warning(
                 f"Robokassa passwords not fully configured for {'TEST' if self.test_mode else 'PROD'} mode"
@@ -42,28 +41,10 @@ class RobokassaPaymentService:
                 self.password2 = "dummy_password2"
 
     def _generate_signature(self, *args) -> str:
-        """Generate MD5 signature"""
+        """Генерация MD5 подписи из аргументов, разделённых двоеточиями"""
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
         logger.debug(f"Signature string: {signature_string}")
-        signature = hashlib.md5(signature_string.encode("utf-8")).hexdigest()
-        logger.debug(f"Generated signature: {signature}")
-        return signature
-
-    def _clean_receipt_data(self, receipt_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Clean receipt data from problematic characters"""
-        cleaned_data = receipt_data.copy()
-
-        # Очищаем названия товаров от экранированных кавычек и других проблемных символов
-        if "items" in cleaned_data:
-            for item in cleaned_data["items"]:
-                if "name" in item:
-                    # Убираем экранированные кавычки и заменяем на обычные
-                    name = item["name"]
-                    name = name.replace('\\"', '"')  # Убираем экранирование
-                    name = name.replace('"', "")  # Убираем все кавычки
-                    item["name"] = name
-
-        return cleaned_data
+        return hashlib.md5(signature_string.encode("utf-8")).hexdigest()
 
     def create_payment_link(
         self,
@@ -73,33 +54,30 @@ class RobokassaPaymentService:
         user_email: str = None,
         receipt_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create payment link with optional receipt for fiscalization"""
-        out_sum = f"{amount:.2f}"
+        """Формируем ссылку на оплату, добавляя чек для фискализации при необходимости"""
+        out_sum = f"{amount:.2f}"  # Сумма в формате 2 знака
         inv_id = str(payment_id)
-
         logger.info(
             f"Creating payment link in {'TEST' if self.test_mode else 'PRODUCTION'} mode"
         )
 
         if self.test_mode:
-            # В тестовом режиме чеки не поддерживаются
-            signature = self._generate_signature(
+            # В тесте — простая подпись без чека
+            sig = self._generate_signature(
                 self.merchant_login, out_sum, inv_id, self.password1
             )
-
             params = {
                 "MerchantLogin": self.merchant_login,
                 "OutSum": out_sum,
                 "InvId": inv_id,
-                "SignatureValue": signature,
+                "SignatureValue": sig,
                 "IsTest": "1",
             }
-
             if description:
                 params["Description"] = description
 
         else:
-            # Production mode with receipt support
+            # Продакшн — собираем параметры
             params = {
                 "MerchantLogin": self.merchant_login,
                 "OutSum": out_sum,
@@ -112,121 +90,72 @@ class RobokassaPaymentService:
                 params["Email"] = user_email
 
             if receipt_data:
-                cleaned_receipt = self._clean_receipt_data(receipt_data)
-                # Сериализуем в компактный JSON
                 receipt_json = json.dumps(
-                    cleaned_receipt, ensure_ascii=False, separators=(",", ":")
+                    receipt_data, ensure_ascii=False, separators=(",", ":")
                 )
-                # URL‑кодируем для расчёта подписи
-                # Контрольная подпись с включённым Receipt
-                signature = self._generate_signature(
+
+                # Строка для MD5 включает «сырой» JSON
+                raw_sig_str = ":".join([
                     self.merchant_login,
                     out_sum,
                     inv_id,
                     receipt_json,
-                    self.password1,
-                )
-                # В параметры кладём оригинальный JSON
+                    self.password1
+                ])
+                logger.debug("String for MD5: %s", raw_sig_str)
+                sig = hashlib.md5(raw_sig_str.encode("utf-8")).hexdigest()
+                logger.debug("Calculated signature: %s", sig)
+
+                # В параметры URL кладём JSON, а не закодированную строку
                 params["Receipt"] = receipt_json
             else:
-                # Без чеков подпись по стандартной схеме
-                signature = self._generate_signature(
+                sig = self._generate_signature(
                     self.merchant_login, out_sum, inv_id, self.password1
                 )
 
-            params["SignatureValue"] = signature
-            
-        raw_string = ":".join([
-            self.merchant_login,
-            out_sum,
-            inv_id,
-            receipt_json,     # без urlencode!
-            self.password1
-        ])
-        logger.debug(">> String for MD5: %s", raw_string)
-        signature = hashlib.md5(raw_string.encode('utf-8')).hexdigest()
-        logger.debug(">> Calculated signature: %s", signature)
+            params["SignatureValue"] = sig
 
-        logger.info(f"Creating payment URL with params: {list(params.keys())}")
-
-        # Используем urlencode с правильными параметрами
+        # Генерируем финальную ссылку с корректным URL-encoding
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
-   
         logger.info(f"Payment URL created, length: {len(url)} chars")
-
         return url
 
     def verify_payment_result(self, data: Dict[str, Any]) -> bool:
-        """Verify payment result signature (uses Password2)"""
+        """Проверяем подпись результата платежа (используем password2)"""
         out_sum = data.get("OutSum", "")
         inv_id = data.get("InvId", "")
-        signature = data.get("SignatureValue", "").lower()
-
-        if not all([out_sum, inv_id, signature]):
-            logger.warning("Missing required fields for payment verification")
+        received_sig = data.get("SignatureValue", "").lower()
+        if not (out_sum and inv_id and received_sig):
             return False
 
-        # Базовая подпись без дополнительных параметров
-        expected = self._generate_signature(out_sum, inv_id, self.password2).lower()
+        # Собираем параметры shps и Receipt
+        shp_parts = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
+        parts = [out_sum, inv_id]
+        if data.get("Receipt"):
+            parts.append(data["Receipt"])
+        parts += [f"{k}={v}" for k, v in shp_parts]
+        parts.append(self.password2)
 
-        # Проверяем наличие дополнительных параметров (включая Receipt)
-        shp_params = sorted([(k, v) for k, v in data.items() if k.startswith("shp_")])
-        receipt = data.get("Receipt")
-
-        if shp_params or receipt:
-            sig_parts = [out_sum, inv_id]
-
-            # Добавляем Receipt если есть (должен быть первым после основных параметров)
-            if receipt:
-                sig_parts.append(receipt)
-
-            # Добавляем shp_ параметры
-            for key, value in shp_params:
-                sig_parts.append(f"{key}={value}")
-
-            sig_parts.append(self.password2)
-            expected = self._generate_signature(*sig_parts).lower()
-
-        result = signature == expected
-
-        if not result:
-            logger.warning(
-                f"Signature mismatch. Expected: {expected}, Got: {signature}"
-            )
-            logger.warning(
-                f"Data: OutSum={out_sum}, InvId={inv_id}, Receipt={'present' if receipt else 'absent'}"
-            )
-
-        return result
+        expected = hashlib.md5(":".join(parts).encode("utf-8")).hexdigest().lower()
+        match = received_sig == expected
+        if not match:
+            logger.warning(f"Payment result signature mismatch: expected {expected}, got {received_sig}")
+        return match
 
     def verify_success_url(self, data: Dict[str, Any]) -> bool:
-        """Verify success URL signature (uses Password1)"""
+        """Проверяем подпись success-редиректа (используем password1)"""
         out_sum = data.get("OutSum", "")
         inv_id = data.get("InvId", "")
-        signature = data.get("SignatureValue", "").lower()
-
-        if not all([out_sum, inv_id, signature]):
+        received_sig = data.get("SignatureValue", "").lower()
+        if not (out_sum and inv_id and received_sig):
             return False
 
-        # Базовая подпись без дополнительных параметров
-        expected = self._generate_signature(out_sum, inv_id, self.password1).lower()
+        shp_parts = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
+        parts = [out_sum, inv_id]
+        if data.get("Receipt"):
+            parts.append(data["Receipt"])
+        parts += [f"{k}={v}" for k, v in shp_parts]
+        parts.append(self.password1)
 
-        # Проверяем наличие дополнительных параметров (включая Receipt)
-        shp_params = sorted([(k, v) for k, v in data.items() if k.startswith("shp_")])
-        receipt = data.get("Receipt")
-
-        if shp_params or receipt:
-            sig_parts = [out_sum, inv_id]
-
-            # Добавляем Receipt если есть
-            if receipt:
-                sig_parts.append(receipt)
-
-            # Добавляем shp_ параметры
-            for key, value in shp_params:
-                sig_parts.append(f"{key}={value}")
-
-            sig_parts.append(self.password1)
-            expected = self._generate_signature(*sig_parts).lower()
-
-        return signature == expected
+        expected = hashlib.md5(":".join(parts).encode("utf-8")).hexdigest().lower()
+        return received_sig == expected
