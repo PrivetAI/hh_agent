@@ -40,6 +40,22 @@ class RobokassaPaymentService:
         logger.debug(f"Generated signature: {signature}")
         return signature
 
+    def _clean_receipt_data(self, receipt_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Clean receipt data from problematic characters"""
+        cleaned_data = receipt_data.copy()
+        
+        # Очищаем названия товаров от экранированных кавычек и других проблемных символов
+        if 'items' in cleaned_data:
+            for item in cleaned_data['items']:
+                if 'name' in item:
+                    # Убираем экранированные кавычки и заменяем на обычные
+                    name = item['name']
+                    name = name.replace('\\"', '"')  # Убираем экранирование
+                    name = name.replace('"', '')     # Убираем все кавычки
+                    item['name'] = name
+                    
+        return cleaned_data
+
     def create_payment_link(
         self,
         payment_id: int,
@@ -90,10 +106,13 @@ class RobokassaPaymentService:
             
             # Формируем подпись
             if receipt_data:
-                # Сериализуем чек в JSON без пробелов
-                receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(',', ':'))
+                # Очищаем чек от проблемных символов
+                cleaned_receipt = self._clean_receipt_data(receipt_data)
                 
-                # ИСПРАВЛЕНИЕ: Подпись с чеком формируется БЕЗ URL-кодирования
+                # Сериализуем чек в JSON без пробелов
+                receipt_json = json.dumps(cleaned_receipt, ensure_ascii=False, separators=(',', ':'))
+                
+                # Подпись с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
                 signature = self._generate_signature(
                     self.merchant_login,
                     out_sum,
@@ -102,8 +121,7 @@ class RobokassaPaymentService:
                     self.password1
                 )
                 
-                # ИСПРАВЛЕНИЕ: Для параметра Receipt используем обычную строку JSON
-                # urlencode сам закодирует при формировании URL
+                # Для параметра Receipt используем обычную строку JSON
                 params["Receipt"] = receipt_json
                 
                 logger.info(f"Receipt added to payment, length: {len(receipt_json)} chars")
@@ -121,8 +139,7 @@ class RobokassaPaymentService:
     
         logger.info(f"Creating payment URL with params: {list(params.keys())}")
         
-        # ИСПРАВЛЕНИЕ: Используем urlencode с правильными параметрами
-        # urlencode автоматически корректно закодирует все параметры
+        # Используем urlencode с правильными параметрами
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
             
         logger.info(f"Payment URL created, length: {len(url)} chars")
