@@ -68,8 +68,6 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app
-      - ./.env.development:/app/.env.development:ro  # Копируем env файл в контейнер
-      - backend_node_modules:/app/node_modules  # Если используете Node.js зависимости
     ports:
       - "8000:8000"
       - "5678:5678"  # Порт для дебаггера (debugpy)
