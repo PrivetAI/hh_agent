@@ -12,13 +12,13 @@ class RobokassaService:
     
     def __init__(self):
         self.merchant_login = settings.ROBOKASSA_MERCHANT_LOGIN
-        self.base_url = "https://auth.robokassa.ru/Merchant/Index.aspx"
+        self.base_url = "https://auth.robokassa.ru/Merchant/Index.aspx"  # Единый URL для теста и продакшена
         self.test_mode = settings.ROBOKASSA_TEST_MODE
         self.receipt_generator = ReceiptGenerator()
 
         if self.test_mode:
-            self.password1 = settings.ROBOKASSA_TEST_PASSWORD_1 or "BCd7XYGZ42m4cbeHX6be"
-            self.password2 = settings.ROBOKASSA_TEST_PASSWORD_2 or "pjXW77PQV28NP2glvHfp"
+            self.password1 = settings.ROBOKASSA_TEST_PASSWORD_1
+            self.password2 = settings.ROBOKASSA_TEST_PASSWORD_2
             logger.info("Робокасса инициализирована в тестовом режиме")
         else:
             self.password1 = settings.ROBOKASSA_PASSWORD_1
@@ -27,7 +27,7 @@ class RobokassaService:
 
         if not self.password1 or not self.password2:
             logger.warning(f"Пароли Робокассы не полностью настроены для {'тестового' if self.test_mode else 'рабочего'} режима")
-
+            
     def _generate_signature(self, *args) -> str:
         """Генерация MD5 подписи"""
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
