@@ -171,7 +171,7 @@ class ReceiptValidator:
             "items": [
                 {
                     "name": f"Токены для генерации ({credits} шт.)",
-                    "quantity": 1.0,
+                    "quantity": 1,
                     "sum": float(amount),
                     "payment_method": "full_prepayment",
                     "payment_object": "service",

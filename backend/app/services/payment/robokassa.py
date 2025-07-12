@@ -42,6 +42,30 @@ class RobokassaPaymentService:
         if '.' not in formatted:
             formatted += '.00'
         return formatted
+    
+    def _format_receipt_for_signature(self, receipt_data: Dict[str, Any]) -> str:
+        """Format receipt for signature calculation according to Robokassa requirements"""
+        # Create a copy to avoid modifying the original
+        receipt_copy = json.loads(json.dumps(receipt_data))
+        
+        # Ensure proper number formatting in receipt
+        if "items" in receipt_copy:
+            for item in receipt_copy["items"]:
+                # Format sum as string with 2 decimal places
+                if "sum" in item:
+                    item["sum"] = f"{float(item['sum']):.2f}"
+                # Format quantity - if it's a whole number, format without decimals
+                if "quantity" in item:
+                    qty = float(item["quantity"])
+                    if qty == int(qty):
+                        item["quantity"] = int(qty)
+                    else:
+                        item["quantity"] = f"{qty:.2f}"
+        
+        # Convert to JSON string with specific formatting
+        # Use separators without spaces as per Robokassa requirements
+        receipt_json = json.dumps(receipt_copy, ensure_ascii=False, separators=(",", ":"))
+        return receipt_json
 
     def create_payment_link(
         self,
@@ -82,30 +106,29 @@ class RobokassaPaymentService:
                 params["Email"] = user_email
 
             if receipt_data:
-                # Формируем JSON чека с правильными разделителями
-                receipt_json = json.dumps(receipt_data, ensure_ascii=False, separators=(",", ":"))
-                logger.info(f"Receipt JSON: {receipt_json}")
+                # Format receipt for signature calculation
+                receipt_for_signature = self._format_receipt_for_signature(receipt_data)
+                logger.info(f"Receipt JSON for signature: {receipt_for_signature}")
                 
-                # ИСПРАВЛЕНО: Правильный порядок параметров для подписи с чеком
-                # Для production с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
-                sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_json}:{self.password1}"
-                
+                # Calculate signature with formatted receipt
+                sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_for_signature}:{self.password1}"
                 logger.info(f"Signature string for MD5: {sig_str}")
                 sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()
                 logger.info(f"Calculated signature: {sig}")
 
-                params["Receipt"] = receipt_json
+                # Use the same formatted receipt in params
+                params["Receipt"] = receipt_for_signature
             else:
-                # Для production без чека: MerchantLogin:OutSum:InvId:Password1
+                # For production without receipt
                 sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
 
             params["SignatureValue"] = sig
 
-        # Генерируем URL
+        # Generate URL
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
         logger.info(f"Payment URL created, length: {len(url)} chars")
         
-        # Дополнительная отладка
+        # Additional infoging
         logger.info(f"Final params: {params}")
         
         return url
