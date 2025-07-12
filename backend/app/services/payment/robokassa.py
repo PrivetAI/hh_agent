@@ -24,7 +24,7 @@ class RobokassaPaymentService:
             logger.info("Robokassa initialized in PRODUCTION mode")
 
         if not self.password1 or not self.password2:
-            logger.warning(f"Robokassa passwords not fully configured for {'TEST' if self.test_mode else 'PROD'} mode")
+            logger.info(f"Robokassa passwords not fully configured for {'TEST' if self.test_mode else 'PROD'} mode")
 
     def _generate_signature(self, *args) -> str:
         """Generate MD5 signature from args"""
@@ -167,7 +167,7 @@ class RobokassaPaymentService:
         url = f"{self.base_url}?{'&'.join(url_params)}"
         
         logger.info(f"Payment URL created, length: {len(url)} chars")
-        logger.debug(f"Final URL (first 200 chars): {url[:200]}...")
+        logger.info(f"Final URL (first 200 chars): {url[:200]}...")
         
         return url
 
@@ -210,10 +210,10 @@ class RobokassaPaymentService:
         match = received_sig == expected
         
         if not match:
-            logger.warning(f"Payment result signature mismatch")
-            logger.warning(f"Expected: {expected}")
-            logger.warning(f"Received: {received_sig}")
-            logger.debug(f"Signature string: {sig_string}")
+            logger.info(f"Payment result signature mismatch")
+            logger.info(f"Expected: {expected}")
+            logger.info(f"Received: {received_sig}")
+            logger.info(f"Signature string: {sig_string}")
         else:
             logger.info("Payment result signature verified successfully")
             
@@ -258,10 +258,10 @@ class RobokassaPaymentService:
         match = received_sig == expected
         
         if not match:
-            logger.warning(f"Success URL signature mismatch")
-            logger.warning(f"Expected: {expected}")
-            logger.warning(f"Received: {received_sig}")
-            logger.debug(f"Signature string: {sig_string}")
+            logger.info(f"Success URL signature mismatch")
+            logger.info(f"Expected: {expected}")
+            logger.info(f"Received: {received_sig}")
+            logger.info(f"Signature string: {sig_string}")
         else:
             logger.info("Success URL signature verified successfully")
             
