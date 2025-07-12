@@ -89,6 +89,7 @@ class RobokassaPaymentService:
                 # ИСПРАВЛЕНО: Правильный порядок параметров для подписи с чеком
                 # Для production с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
                 sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_json}:{self.password1}"
+                
                 logger.debug(f"Signature string for MD5: {sig_str}")
                 sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()
                 logger.debug(f"Calculated signature: {sig}")

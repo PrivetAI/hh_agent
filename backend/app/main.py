@@ -1,7 +1,14 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+
 import logging
 import os
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .core.database import create_tables
 from .core.config import settings
 from .api.v1 import auth, vacancy, payment, user
@@ -13,8 +20,6 @@ app = FastAPI(
     version="2.0.0",
     description="API для автоматизации откликов на вакансии с HH"
 )
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 logger.info("=== ENVIRONMENT DEBUG ===")
 logger.info(f"Working directory: {os.getcwd()}")
