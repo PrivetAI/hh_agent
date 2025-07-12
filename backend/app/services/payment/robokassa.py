@@ -27,7 +27,7 @@ class RobokassaService:
 
         if not self.password1 or not self.password2:
             logger.warning(f"Пароли Робокассы не полностью настроены для {'тестового' if self.test_mode else 'рабочего'} режима")
-            
+
     def _generate_signature(self, *args) -> str:
         """Генерация MD5 подписи"""
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
@@ -66,14 +66,13 @@ class RobokassaService:
 
         if self.test_mode:
             params["IsTest"] = "1"
-            sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
+
+        if receipt_data:
+            receipt_json = self.receipt_generator.format_receipt(receipt_data)
+            params["Receipt"] = receipt_json
+            sig = self._generate_signature(self.merchant_login, out_sum, inv_id, receipt_json, self.password1)
         else:
-            if receipt_data:
-                receipt_json = self.receipt_generator.format_receipt(receipt_data)
-                params["Receipt"] = receipt_json
-                sig = self._generate_signature(self.merchant_login, out_sum, inv_id, receipt_json, self.password1)
-            else:
-                sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
+            sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
 
         params["SignatureValue"] = sig
         if user_email:
