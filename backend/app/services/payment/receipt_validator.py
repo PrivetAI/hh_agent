@@ -170,7 +170,7 @@ class ReceiptValidator:
             "sno": sno,
             "items": [
                 {
-                    "name": f"Токены для генерации ({credits} шт.)",
+                    "name": f"tokens for generation ({credits} )",
                     "quantity": 1,
                     "sum": float(amount),
                     "payment_method": "full_prepayment",
