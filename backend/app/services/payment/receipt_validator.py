@@ -97,7 +97,7 @@ class ReceiptValidator:
                 item_errors = cls._validate_item(item, i)
                 errors.extend(item_errors)
         
-        # Проверка контакта покупателя
+        # Проверка контакта покупателя (опционально)
         if "customerContact" in receipt:
             contact = receipt["customerContact"]
             if "@" in contact and not cls.validate_email(contact):
@@ -160,19 +160,27 @@ class ReceiptValidator:
         Generate valid receipt for credit package
         
         Args:
-            package_name: Package identifier
             credits: Number of credits
             amount: Total amount
             user_email: Customer email (optional)
             sno: Tax system (default: usn_income)
         """
+        # ВАЖНО: Всегда используем русский текст для чека
+        item_name = f"Токены для генерации ({credits} шт.)"
+        
+        # Логируем для отладки
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Generating receipt with item name: {item_name}")
+        
+        # Формируем чек с правильным форматом
         receipt = {
             "sno": sno,
             "items": [
                 {
-                    "name": f"tokens for generation ({credits} )",
-                    "quantity": 1,
-                    "sum": float(amount),
+                    "name": item_name,  # Русский текст
+                    "quantity": 1,  # Целое число для количества
+                    "sum": float(amount),  # Число с плавающей точкой для суммы
                     "payment_method": "full_prepayment",
                     "payment_object": "service",
                     "tax": "none"
@@ -180,8 +188,10 @@ class ReceiptValidator:
             ]
         }
         
-        # Добавляем контакт покупателя если есть
+        # Добавляем контакт покупателя если есть валидный email
         if user_email and ReceiptValidator.validate_email(user_email):
             receipt["customerContact"] = user_email
+            
+        logger.info(f"Generated receipt: {receipt}")
             
         return receipt

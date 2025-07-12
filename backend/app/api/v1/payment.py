@@ -49,7 +49,7 @@ async def create_payment(
         logger.info(f"ROBOKASSA_TEST_MODE: {settings.ROBOKASSA_TEST_MODE}")
         
         try:
-           # Получаем данные чека для продакшн режима
+            # Получаем данные чека для продакшн режима
             receipt_data = None
             if not settings.ROBOKASSA_TEST_MODE:
                 receipt_data = PaymentCRUD.get_receipt_data(
@@ -58,10 +58,13 @@ async def create_payment(
                 )
                 logger.info(f"Receipt data generated for production mode with email: {user.email}")
             
+            # ВАЖНО: Всегда используем русское описание
+            description = f"Покупка {package_info['credits']} токенов"
+            
             payment_url = payment_service.create_payment_link(
                 payment_id=payment.id,
                 amount=float(package_info["amount"]),
-                description=f"Buying {package_info['credits']} tokens",
+                description=description,  # Русское описание
                 user_email=None if settings.ROBOKASSA_TEST_MODE else user.email,
                 receipt_data=receipt_data
             )
@@ -104,8 +107,8 @@ async def create_payment(
         logger.error(f"=== PAYMENT CREATE UNEXPECTED ERROR === {e}, Time: {elapsed_time:.2f}s")
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-
+    
+    
 @router.get("/result")
 async def payment_result(
     request: Request,

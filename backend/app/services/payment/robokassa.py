@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 from typing import Dict, Any, Optional
-from urllib.parse import urlencode, quote_plus
+from urllib.parse import urlencode, quote_plus, quote
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -25,47 +25,15 @@ class RobokassaPaymentService:
 
         if not self.password1 or not self.password2:
             logger.warning(f"Robokassa passwords not fully configured for {'TEST' if self.test_mode else 'PROD'} mode")
-            if not self.password1:
-                self.password1 = "dummy_password1"
-            if not self.password2:
-                self.password2 = "dummy_password2"
 
     def _generate_signature(self, *args) -> str:
+        """Generate MD5 signature from args"""
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
-        logger.info(f"Signature string: {signature_string}")
         return hashlib.md5(signature_string.encode("utf-8")).hexdigest()
 
     def _format_amount(self, amount: float) -> str:
-        """Форматирует сумму корректно для Robokassa"""
-        # Убираем лишние нули после запятой
-        formatted = f"{amount:.2f}".rstrip('0').rstrip('.')
-        if '.' not in formatted:
-            formatted += '.00'
-        return formatted
-    
-    def _format_receipt_for_signature(self, receipt_data: Dict[str, Any]) -> str:
-        """Format receipt for signature calculation according to Robokassa requirements"""
-        # Create a copy to avoid modifying the original
-        receipt_copy = json.loads(json.dumps(receipt_data))
-        
-        # Ensure proper number formatting in receipt
-        if "items" in receipt_copy:
-            for item in receipt_copy["items"]:
-                # Format sum as string with 2 decimal places
-                if "sum" in item:
-                    item["sum"] = f"{float(item['sum']):.2f}"
-                # Format quantity - if it's a whole number, format without decimals
-                if "quantity" in item:
-                    qty = float(item["quantity"])
-                    if qty == int(qty):
-                        item["quantity"] = int(qty)
-                    else:
-                        item["quantity"] = f"{qty:.2f}"
-        
-        # Convert to JSON string with specific formatting
-        # Use separators without spaces as per Robokassa requirements
-        receipt_json = json.dumps(receipt_copy, ensure_ascii=False, separators=(",", ":"))
-        return receipt_json
+        """Format amount for Robokassa (e.g., 149.00)"""
+        return f"{amount:.2f}"
 
     def create_payment_link(
         self,
@@ -75,13 +43,19 @@ class RobokassaPaymentService:
         user_email: str = None,
         receipt_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        # Исправляем формат суммы
+        """Create payment link with proper receipt handling"""
+        
+        # Format amount
         out_sum = self._format_amount(amount)
         inv_id = str(payment_id)
+        
         logger.info(f"Creating payment link in {'TEST' if self.test_mode else 'PRODUCTION'} mode")
         logger.info(f"Amount: {amount} -> OutSum: {out_sum}")
+        logger.info(f"InvId: {inv_id}")
+        logger.info(f"Description: {description}")
 
         if self.test_mode:
+            # Test mode - simple signature without receipt
             sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
             params = {
                 "MerchantLogin": self.merchant_login,
@@ -94,47 +68,106 @@ class RobokassaPaymentService:
                 params["Description"] = description
 
         else:
-            params = {
-                "MerchantLogin": self.merchant_login,
-                "OutSum": out_sum,
-                "InvId": inv_id,
-                "Description": description,
-                "Culture": "ru",
-                "Encoding": "utf-8",
-            }
-            if user_email:
-                params["Email"] = user_email
-
+            # Production mode
             if receipt_data:
-                # Format receipt for signature calculation
-                receipt_for_signature = self._format_receipt_for_signature(receipt_data)
-                logger.info(f"Receipt JSON for signature: {receipt_for_signature}")
+                # Log original receipt data
+                logger.info(f"Original receipt data: {json.dumps(receipt_data, ensure_ascii=False)}")
                 
-                # Calculate signature with formatted receipt
-                sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_for_signature}:{self.password1}"
-                logger.info(f"Signature string for MD5: {sig_str}")
-                sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()
+                # ВАЖНО: Убедимся что в чеке правильный формат чисел
+                receipt_copy = json.loads(json.dumps(receipt_data))
+                
+                # Форматируем числа в items
+                if "items" in receipt_copy:
+                    for item in receipt_copy["items"]:
+                        # Логируем название товара
+                        logger.info(f"Item name in receipt: {item.get('name', 'NO NAME')}")
+                        
+                        # sum должен быть числом с точкой
+                        if "sum" in item:
+                            item["sum"] = float(item["sum"])
+                        # quantity должен быть числом
+                        if "quantity" in item:
+                            qty = float(item["quantity"])
+                            # Если целое число, храним как int
+                            if qty == int(qty):
+                                item["quantity"] = int(qty)
+                            else:
+                                item["quantity"] = qty
+                
+                # Создаем JSON строку БЕЗ пробелов для подписи
+                receipt_json = json.dumps(receipt_copy, ensure_ascii=False, separators=(',', ':'))
+                
+                logger.info(f"Receipt JSON for signature: {receipt_json}")
+                logger.info(f"Receipt JSON length: {len(receipt_json)}")
+                
+                # Вычисляем подпись с НЕ закодированным чеком
+                # Порядок: MerchantLogin:OutSum:InvId:Receipt:Password1
+                sig_components = [
+                    self.merchant_login,
+                    out_sum,
+                    inv_id,
+                    receipt_json,
+                    self.password1
+                ]
+                
+                sig_string = ":".join(sig_components)
+                logger.info(f"Signature string length: {len(sig_string)}")
+                logger.info(f"Signature string: {sig_string[:200]}...") # Показываем только начало
+                
+                sig = hashlib.md5(sig_string.encode("utf-8")).hexdigest()
                 logger.info(f"Calculated signature: {sig}")
-
-                # Use the same formatted receipt in params
-                params["Receipt"] = receipt_for_signature
+                
+                # Формируем параметры
+                params = {
+                    "MerchantLogin": self.merchant_login,
+                    "OutSum": out_sum,
+                    "InvId": inv_id,
+                    "Description": description,
+                    "SignatureValue": sig,
+                    "Culture": "ru",
+                    "Encoding": "utf-8"
+                }
+                
+                # Добавляем email если есть
+                if user_email:
+                    params["Email"] = user_email
+                
+                # ВАЖНО: Receipt добавляем в параметры как есть (urlencode сделает кодирование)
+                params["Receipt"] = receipt_json
+                
             else:
-                # For production without receipt
+                # Production без чека
                 sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
+                params = {
+                    "MerchantLogin": self.merchant_login,
+                    "OutSum": out_sum,
+                    "InvId": inv_id,
+                    "Description": description,
+                    "SignatureValue": sig,
+                    "Culture": "ru",
+                    "Encoding": "utf-8"
+                }
+                if user_email:
+                    params["Email"] = user_email
 
-            params["SignatureValue"] = sig
-
-        # Generate URL
+        # Генерируем URL (urlencode автоматически закодирует Receipt)
         url = f"{self.base_url}?{urlencode(params, quote_via=quote_plus)}"
-        logger.info(f"Payment URL created, length: {len(url)} chars")
         
-        # Additional infoging
-        logger.info(f"Final params: {params}")
+        logger.info(f"Payment URL created, length: {len(url)} chars")
+        logger.debug(f"Final URL (first 200 chars): {url[:200]}...")
+        
+        # Дополнительная отладка параметров
+        logger.debug(f"Final params keys: {list(params.keys())}")
+        for key, value in params.items():
+            if key != "Receipt":
+                logger.debug(f"Param {key}: {value}")
+            else:
+                logger.debug(f"Param Receipt length: {len(value)}")
         
         return url
 
     def verify_payment_result(self, data: Dict[str, Any]) -> bool:
-        """Проверяем подпись результата платежа (используем password2)"""
+        """Verify payment result signature (uses password2)"""
         out_sum = data.get("OutSum", "")
         inv_id = data.get("InvId", "")
         received_sig = data.get("SignatureValue", "").lower()
@@ -143,39 +176,44 @@ class RobokassaPaymentService:
             logger.error("Missing required parameters for payment result verification")
             return False
 
-        # Форматируем сумму так же, как при создании платежа
-        if isinstance(out_sum, str):
-            try:
-                out_sum = self._format_amount(float(out_sum))
-            except ValueError:
-                logger.error(f"Invalid OutSum format: {out_sum}")
-                return False
+        # Format amount if needed
+        if isinstance(out_sum, str) and '.' not in out_sum:
+            out_sum = f"{out_sum}.00"
 
-        # Собираем параметры shps и Receipt
-        shp_parts = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
-        parts = [out_sum, inv_id]
+        # Build signature components
+        # Order for result: OutSum:InvId:Receipt:Password2
+        sig_components = [out_sum, inv_id]
         
+        # Add Receipt if present
         if data.get("Receipt"):
-            parts.append(data["Receipt"])
-            
-        parts += [f"{k}={v}" for k, v in shp_parts]
-        parts.append(self.password2)
-
-        expected = hashlib.md5(":".join(parts).encode("utf-8")).hexdigest().lower()
+            sig_components.append(data["Receipt"])
+        
+        # Add shp_ parameters in sorted order
+        shp_params = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
+        for key, value in shp_params:
+            sig_components.append(f"{key}={value}")
+        
+        # Add password2
+        sig_components.append(self.password2)
+        
+        # Calculate expected signature
+        sig_string = ":".join(sig_components)
+        expected = hashlib.md5(sig_string.encode("utf-8")).hexdigest().lower()
+        
         match = received_sig == expected
         
         if not match:
             logger.warning(f"Payment result signature mismatch")
             logger.warning(f"Expected: {expected}")
             logger.warning(f"Received: {received_sig}")
-            logger.warning(f"Signature parts: {parts}")
+            logger.debug(f"Signature string: {sig_string}")
         else:
             logger.info("Payment result signature verified successfully")
             
         return match
 
     def verify_success_url(self, data: Dict[str, Any]) -> bool:
-        """Проверяем подпись success-редиректа (используем password1)"""
+        """Verify success redirect signature (uses password1)"""
         out_sum = data.get("OutSum", "")
         inv_id = data.get("InvId", "")
         received_sig = data.get("SignatureValue", "").lower()
@@ -184,31 +222,37 @@ class RobokassaPaymentService:
             logger.error("Missing required parameters for success URL verification")
             return False
 
-        # Форматируем сумму так же, как при создании платежа
-        if isinstance(out_sum, str):
-            try:
-                out_sum = self._format_amount(float(out_sum))
-            except ValueError:
-                logger.error(f"Invalid OutSum format: {out_sum}")
-                return False
+        # Format amount if needed
+        if isinstance(out_sum, str) and '.' not in out_sum:
+            out_sum = f"{out_sum}.00"
 
-        shp_parts = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
-        parts = [out_sum, inv_id]
+        # Build signature components
+        # Order for success: OutSum:InvId:Receipt:Password1
+        sig_components = [out_sum, inv_id]
         
+        # Add Receipt if present
         if data.get("Receipt"):
-            parts.append(data["Receipt"])
-            
-        parts += [f"{k}={v}" for k, v in shp_parts]
-        parts.append(self.password1)
-
-        expected = hashlib.md5(":".join(parts).encode("utf-8")).hexdigest().lower()
+            sig_components.append(data["Receipt"])
+        
+        # Add shp_ parameters in sorted order
+        shp_params = sorted((k, v) for k, v in data.items() if k.startswith("shp_"))
+        for key, value in shp_params:
+            sig_components.append(f"{key}={value}")
+        
+        # Add password1
+        sig_components.append(self.password1)
+        
+        # Calculate expected signature
+        sig_string = ":".join(sig_components)
+        expected = hashlib.md5(sig_string.encode("utf-8")).hexdigest().lower()
+        
         match = received_sig == expected
         
         if not match:
             logger.warning(f"Success URL signature mismatch")
             logger.warning(f"Expected: {expected}")
             logger.warning(f"Received: {received_sig}")
-            logger.warning(f"Signature parts: {parts}")
+            logger.debug(f"Signature string: {sig_string}")
         else:
             logger.info("Success URL signature verified successfully")
             
