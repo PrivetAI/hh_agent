@@ -34,7 +34,7 @@ services:
   backend-hh:
     build: 
       context: ./backend
-    dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.prod
     container_name: hhagent_backend
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-hhuser}:${POSTGRES_PASSWORD}@postgres-hh:5432/${POSTGRES_DB:-hhapp}
