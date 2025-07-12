@@ -7,7 +7,7 @@ import logging
 
 from ..models.db import Payment, LetterGeneration
 from ..models.schemas import PaymentCreate
-from ..services.payment.receipt_validator import ReceiptValidator
+from ..services.payment.receipt_generator import ReceiptGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class PaymentCRUD:
             raise ValueError(f"Invalid package: {package}")
         
         # Генерируем чек через валидатор
-        receipt = ReceiptValidator.generate_receipt(
+        receipt = ReceiptGenerator.generate_receipt(
             credits=package_info["credits"],
             amount=float(package_info["amount"]),
             user_email=user_email,
@@ -35,7 +35,7 @@ class PaymentCRUD:
         )
         
         # Валидируем чек
-        errors = ReceiptValidator.validate_receipt(receipt)
+        errors = ReceiptGenerator.validate_receipt(receipt)
         if errors:
             logger.error(f"Receipt validation errors: {errors}")
             # В продакшене можно кинуть исключение

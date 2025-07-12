@@ -1,3 +1,3 @@
-from .robokassa import RobokassaPaymentService
+from .robokassa import RobokassaService
 
-__all__ = ["RobokassaPaymentService"]
+__all__ = ["RobokassaService"]

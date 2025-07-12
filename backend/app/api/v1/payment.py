@@ -12,13 +12,14 @@ from ...crud.user import UserCRUD
 from ...models.db import User
 from ...models.schemas import PaymentCreate
 from ...core.config import settings
-from ...services.payment.robokassa import RobokassaPaymentService
+from ...services.payment.robokassa import RobokassaService
+from ...services.payment.receipt_generator import ReceiptGenerator
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
-payment_service = RobokassaPaymentService()
-
+payment_service = RobokassaService()
+receipt_generator = ReceiptGenerator()
 @router.post("/create")
 async def create_payment(
     payment_data: PaymentCreate,
@@ -49,11 +50,12 @@ async def create_payment(
         logger.info(f"ROBOKASSA_TEST_MODE: {settings.ROBOKASSA_TEST_MODE}")
         
         try:
-            # Получаем данные чека для продакшн режима
+            # Генерация чека для продакшн режима
             receipt_data = None
             if not settings.ROBOKASSA_TEST_MODE:
-                receipt_data = PaymentCRUD.get_receipt_data(
-                    payment_data.package,
+                receipt_data = receipt_generator.generate_receipt(
+                    credits=package_info["credits"],
+                    amount=float(package_info["amount"]),
                     user_email=user.email
                 )
                 logger.info(f"Receipt data generated for production mode with email: {user.email}")
@@ -66,7 +68,7 @@ async def create_payment(
                 amount=float(package_info["amount"]),
                 description=description,  # Русское описание
                 user_email=None if settings.ROBOKASSA_TEST_MODE else user.email,
-                # receipt_data=receipt_data
+                receipt_data=receipt_data
             )
             logger.info(f"Payment URL created successfully")
 
@@ -108,7 +110,7 @@ async def create_payment(
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
     
-
+    
 @router.get("/result")
 async def payment_result(
     request: Request,
