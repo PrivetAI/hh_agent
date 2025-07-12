@@ -69,7 +69,7 @@ class RobokassaPaymentService:
         amount: float,
         description: str,
         user_email: str = None,
-        receipt_data: Optional[Dict[str, Any]] = None,
+        # receipt_data: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create payment link with proper receipt handling"""
         
@@ -97,48 +97,48 @@ class RobokassaPaymentService:
 
         else:
             # Production mode
-            if receipt_data:
-                # Форматируем чек согласно требованиям Robokassa
-                receipt_json = self._format_receipt_for_robokassa(receipt_data)
+            # if receipt_data:
+            #     # Форматируем чек согласно требованиям Robokassa
+            #     receipt_json = self._format_receipt_for_robokassa(receipt_data)
                 
-                logger.info(f"Formatted receipt JSON: {receipt_json}")
-                logger.info(f"Receipt JSON length: {len(receipt_json)}")
+            #     logger.info(f"Formatted receipt JSON: {receipt_json}")
+            #     logger.info(f"Receipt JSON length: {len(receipt_json)}")
                 
-                # Вычисляем подпись
-                # Порядок для создания платежа: MerchantLogin:OutSum:InvId:Receipt:Password1
-                sig_components = [
-                    self.merchant_login,
-                    out_sum,
-                    inv_id,
-                    receipt_json,
-                    self.password1
-                ]
+            #     # Вычисляем подпись
+            #     # Порядок для создания платежа: MerchantLogin:OutSum:InvId:Receipt:Password1
+            #     sig_components = [
+            #         self.merchant_login,
+            #         out_sum,
+            #         inv_id,
+            #         receipt_json,
+            #         self.password1
+            #     ]
                 
-                sig_string = ":".join(sig_components)
-                logger.info(f"Signature string length: {len(sig_string)}")
+            #     sig_string = ":".join(sig_components)
+            #     logger.info(f"Signature string length: {len(sig_string)}")
                 
-                sig = hashlib.md5(sig_string.encode("utf-8")).hexdigest()
-                logger.info(f"Calculated signature: {sig}")
+            #     sig = hashlib.md5(sig_string.encode("utf-8")).hexdigest()
+            #     logger.info(f"Calculated signature: {sig}")
                 
-                # Формируем параметры
-                params = {
-                    "MerchantLogin": self.merchant_login,
-                    "OutSum": out_sum,
-                    "InvId": inv_id,
-                    "Description": description,
-                    "SignatureValue": sig,
-                    "Culture": "ru",
-                    "Encoding": "utf-8"
-                }
+            #     # Формируем параметры
+            #     params = {
+            #         "MerchantLogin": self.merchant_login,
+            #         "OutSum": out_sum,
+            #         "InvId": inv_id,
+            #         "Description": description,
+            #         "SignatureValue": sig,
+            #         "Culture": "ru",
+            #         "Encoding": "utf-8"
+            #     }
                 
-                # Добавляем email если есть
-                if user_email:
-                    params["Email"] = user_email
+            #     # Добавляем email если есть
+            #     if user_email:
+            #         params["Email"] = user_email
                 
-                # Добавляем чек
-                params["Receipt"] = receipt_json
+            #     # Добавляем чек
+            #     params["Receipt"] = receipt_json
                 
-            else:
+            # else:
                 # Production без чека
                 sig = self._generate_signature(self.merchant_login, out_sum, inv_id, self.password1)
                 params = {
