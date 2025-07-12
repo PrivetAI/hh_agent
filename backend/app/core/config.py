@@ -33,7 +33,7 @@ class Settings(BaseSettings):
         return bool(v)
     
     class Config:
-        env_file = '.env.development'
+        env_file = '.env'
         env_file_encoding = 'utf-8'
         case_sensitive = True
         # Разрешаем дополнительные поля из .env файла
