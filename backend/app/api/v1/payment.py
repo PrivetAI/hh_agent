@@ -66,7 +66,7 @@ async def create_payment(
                 amount=float(package_info["amount"]),
                 description=description,  # Русское описание
                 user_email=None if settings.ROBOKASSA_TEST_MODE else user.email,
-                receipt_data=receipt_data
+                # receipt_data=receipt_data
             )
             logger.info(f"Payment URL created successfully")
 
@@ -108,7 +108,7 @@ async def create_payment(
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
     
-    
+
 @router.get("/result")
 async def payment_result(
     request: Request,
