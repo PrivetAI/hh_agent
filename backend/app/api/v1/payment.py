@@ -61,7 +61,7 @@ async def create_payment(
                 logger.info(f"Receipt data generated for production mode with email: {user.email}")
             
             # ВАЖНО: Всегда используем русское описание
-            description = f"Покупка {package_info['credits']} токенов"
+            description = f"Покупка токенов для генерации сопроводительных писем"
             
             payment_url = payment_service.create_payment_link(
                 payment_id=payment.id,

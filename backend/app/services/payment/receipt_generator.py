@@ -86,7 +86,7 @@ class ReceiptGenerator:
         if payment_object not in self.ALLOWED_PAYMENT_OBJECT:
             raise ValueError(f"Недопустимый предмет расчета: {payment_object}")
 
-        item_name = f"Токены для генерации ({credits} шт.)"
+        item_name = f"Токены для генерации сопроводительных писем({credits} шт.)"
         receipt = {
             "sno": sno,
             "items": [
