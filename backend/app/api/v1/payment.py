@@ -61,7 +61,7 @@ async def create_payment(
             payment_url = payment_service.create_payment_link(
                 payment_id=payment.id,
                 amount=float(package_info["amount"]),
-                description=f"Покупка {package_info['credits']} токенов",
+                description=f"Buying {package_info['credits']} tokens",
                 user_email=None if settings.ROBOKASSA_TEST_MODE else user.email,
                 receipt_data=receipt_data
             )
