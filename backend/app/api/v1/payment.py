@@ -200,6 +200,58 @@ async def payment_fail(request: Request):
     return {"redirect": f"{settings.FRONTEND_URL}/?payment=fail"}
 
 
+@router.post("/webhook")
+async def payment_webhook(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Webhook для получения статуса платежа от Robokassa
+    Это дополнительный механизм для надежности
+    """
+    logger.info("=== PAYMENT WEBHOOK START ===")
+    
+    try:
+        # Получаем данные из запроса
+        form_data = await request.form()
+        params = dict(form_data)
+        
+        logger.info(f"Webhook params: {list(params.keys())}")
+        
+        # Проверяем подпись
+        if not payment_service.verify_payment_result(params):
+            logger.error("Invalid webhook signature")
+            return {"error": "Invalid signature"}
+        
+        inv_id = params.get("InvId")
+        if not inv_id:
+            return {"error": "No InvId"}
+            
+        payment_id = int(inv_id)
+        
+        # Проверяем статус платежа
+        payment = PaymentCRUD.get_by_id(db, payment_id)
+        if not payment:
+            logger.error(f"Payment not found: {payment_id}")
+            return {"error": "Payment not found"}
+        
+        # Если уже обработан - пропускаем
+        if payment.status == "success":
+            logger.info(f"Payment {payment_id} already processed")
+            return {"status": "already_processed"}
+        
+        # Обновляем статус и начисляем кредиты
+        PaymentCRUD.update_status(db, payment_id, "success")
+        UserCRUD.add_credits(db, payment.user_id, payment.credits)
+        
+        logger.info(f"=== PAYMENT WEBHOOK SUCCESS === Payment ID: {payment_id}")
+        return {"status": "success"}
+        
+    except Exception as e:
+        logger.error(f"=== PAYMENT WEBHOOK ERROR === {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {"error": str(e)}
+    
 @router.get("/packages")
 async def get_packages():
     """Get available credit packages"""
@@ -228,3 +280,4 @@ async def payment_history(
         logger.error(f"Error retrieving payment history for user {user.id}: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to retrieve payment history")
+    

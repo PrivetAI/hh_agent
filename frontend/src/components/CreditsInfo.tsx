@@ -54,12 +54,14 @@ export const CreditsInfo = ({
         try {
             const payment = await apiService.createPayment(selectedPackageId)
             if (payment.payment_url) {
-                window.open(payment.payment_url, '_blank')
-                setTimeout(() => {
-                    if (onCreditsChange) {
-                        onCreditsChange()
-                    }
-                }, 1000)
+                // Сохраняем ID платежа
+                localStorage.setItem('pending_payment_id', payment.payment_id)
+
+                // Открываем в новом окне
+                const paymentWindow = window.open(payment.payment_url, '_blank')
+
+                // Начинаем проверку статуса
+                startPaymentStatusCheck(payment.payment_id, paymentWindow)
             }
         } catch (err: any) {
             alert(err.response?.data?.detail || 'Ошибка создания платежа')
@@ -67,6 +69,62 @@ export const CreditsInfo = ({
             setPaymentLoading(false)
         }
     }
+
+    const startPaymentStatusCheck = (paymentId: string, paymentWindow: Window | null) => {
+        let checkCount = 0
+        const maxChecks = 60 // Проверяем 5 минут (60 * 5 сек)
+
+        const checkInterval = setInterval(async () => {
+            checkCount++
+
+            // Проверяем закрыто ли окно оплаты
+            if (paymentWindow && paymentWindow.closed) {
+                // Делаем финальную проверку через 2 секунды
+                setTimeout(async () => {
+                    if (onCreditsChange) {
+                        await onCreditsChange()
+                    }
+                    clearInterval(checkInterval)
+                    localStorage.removeItem('pending_payment_id')
+                }, 2000)
+                return
+            }
+
+            // Проверяем статус платежа на сервере
+            try {
+                const userInfo = await apiService.getUserInfo()
+                const storedCredits = localStorage.getItem('last_credits_amount')
+
+                if (!storedCredits || parseInt(storedCredits) < userInfo.credits) {
+                    // Кредиты увеличились - платеж успешен
+                    clearInterval(checkInterval)
+                    localStorage.removeItem('pending_payment_id')
+                    localStorage.setItem('last_credits_amount', userInfo.credits.toString())
+
+                    if (onCreditsChange) {
+                        await onCreditsChange()
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking payment status:', error)
+            }
+
+            // Останавливаем после максимального количества проверок
+            if (checkCount >= maxChecks) {
+                clearInterval(checkInterval)
+                localStorage.removeItem('pending_payment_id')
+            }
+        }, 5000) // Проверяем каждые 5 секунд
+    }
+
+    // При загрузке компонента проверяем незавершенные платежи
+    useEffect(() => {
+        const pendingPaymentId = localStorage.getItem('pending_payment_id')
+        if (pendingPaymentId && onCreditsChange) {
+            // Возобновляем проверку статуса
+            startPaymentStatusCheck(pendingPaymentId, null)
+        }
+    }, [])
 
     const getTokenWord = (count: number) => {
         const lastDigit = count % 10
@@ -218,7 +276,7 @@ export const CreditsInfo = ({
                 </LoadingButton>
 
                 <div className="mt-4 text-sm text-[#999999] text-center">
-                 {'Оплата через СБП • '}
+                    {'Оплата через СБП • '}
                     <a href="/offerta">
                         Публичная офферта
                     </a>
