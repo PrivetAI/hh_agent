@@ -32,7 +32,7 @@ class RobokassaPaymentService:
 
     def _generate_signature(self, *args) -> str:
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
-        logger.debug(f"Signature string: {signature_string}")
+        logger.info(f"Signature string: {signature_string}")
         return hashlib.md5(signature_string.encode("utf-8")).hexdigest()
 
     def _format_amount(self, amount: float) -> str:
@@ -90,9 +90,9 @@ class RobokassaPaymentService:
                 # Для production с чеком: MerchantLogin:OutSum:InvId:Receipt:Password1
                 sig_str = f"{self.merchant_login}:{out_sum}:{inv_id}:{receipt_json}:{self.password1}"
                 
-                logger.debug(f"Signature string for MD5: {sig_str}")
+                logger.info(f"Signature string for MD5: {sig_str}")
                 sig = hashlib.md5(sig_str.encode("utf-8")).hexdigest()
-                logger.debug(f"Calculated signature: {sig}")
+                logger.info(f"Calculated signature: {sig}")
 
                 params["Receipt"] = receipt_json
             else:
@@ -106,7 +106,7 @@ class RobokassaPaymentService:
         logger.info(f"Payment URL created, length: {len(url)} chars")
         
         # Дополнительная отладка
-        logger.debug(f"Final params: {params}")
+        logger.info(f"Final params: {params}")
         
         return url
 
