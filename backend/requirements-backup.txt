@@ -1,0 +1,5 @@
+# backend/requirements-backup.txt
+aiogram==3.2.0
+apscheduler==3.10.4
+aiofiles==23.2.1
+psycopg2-binary==2.9.9

@@ -1,3 +1,4 @@
+# docker-compose.prod.yml
 version: '3.8'
 
 services:
@@ -82,6 +83,24 @@ services:
     restart: always
     networks:
       - hh-network
+
+  backup-hh:
+    build:
+      context: ./backend
+      dockerfile: backup.Dockerfile
+    container_name: hhagent_backup
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hhuser}:${POSTGRES_PASSWORD}@postgres-hh:5432/${POSTGRES_DB:-hhapp}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    depends_on:
+      postgres-hh:
+        condition: service_healthy
+    restart: always
+    networks:
+      - hh-network
+    volumes:
+      - /tmp/backups:/tmp  # For restore operations
 
 volumes:
   postgres_hh_data:

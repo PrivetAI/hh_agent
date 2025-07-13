@@ -21,7 +21,6 @@ export default function Footer() {
             <div className="space-y-2 text-sm text-gray-600">
               <p>ИНН: 231136137506</p>
               <p>Email: <a href="mailto:eliseenko1viktor@gmail.com" className="text-[#d6001c] hover:text-[#c5001a]">eliseenko1viktor@gmail.com</a></p>
-              <p>Тел: <a href="tel:+79182445406" className="text-[#d6001c] hover:text-[#c5001a]">+7 918 244-54-06</a></p>
             </div>
           </div>
           

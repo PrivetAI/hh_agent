@@ -27,7 +27,6 @@ export default function PaymentTerms() {
                   <h3 className="text-lg font-semibold mb-2">Основные функции:</h3>
                   <ul className="list-disc list-inside space-y-2 ml-4">
                     <li>Поиск и фильтрация вакансий через API hh.ru</li>
-                    <li>AI-анализ соответствия вакансии вашему резюме</li>
                     <li>Автоматическая генерация персонализированных сопроводительных писем</li>
                     <li>Отправка откликов на вакансии</li>
                   </ul>
@@ -95,7 +94,7 @@ export default function PaymentTerms() {
             <section>
               <h2 className="text-2xl font-semibold mb-4">Сроки оказания услуг</h2>
               <ul className="list-disc list-inside space-y-2 text-gray-700">
-                <li>Генерация сопроводительного письма: 3-5 секунд</li>
+                <li>Генерация сопроводительного письма: до 10 сек</li>
                 <li>Отправка отклика: мгновенно после подтверждения</li>
                 <li>Доступ к сервису: круглосуточно 24/7</li>
                 <li>Техническая поддержка: в рабочие дни с 9:00 до 18:00 МСК</li>
