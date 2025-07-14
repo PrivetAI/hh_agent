@@ -98,12 +98,6 @@ class VacancyDetail(BaseModel):
     key_skills: Optional[List[Dict[str, Any]]]
     professional_roles: Optional[List[Dict[str, Any]]]
 
-# AI schemas
-class MatchAnalysis(BaseModel):
-    score: int
-    strengths: List[str]
-    gaps: List[str]
-    recommendation: str
 
 # Credit check
 class CreditCheckResponse(BaseModel):
