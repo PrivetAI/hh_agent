@@ -1,9 +1,12 @@
 import httpx
 import os
 import logging
+import json
 from fastapi import HTTPException
 from striprtf.striprtf import rtf_to_text
+from typing import Optional, Dict, Any, List
 from ...core.config import settings
+
 logger = logging.getLogger(__name__)
 
 class HHClient:
@@ -14,6 +17,123 @@ class HHClient:
         if not settings.HH_CLIENT_ID or not settings.HH_CLIENT_SECRET:
             logger.error(f"HH credentials missing! client_id: {bool(settings.HH_CLIENT_ID)}, client_secret: {bool(settings.HH_CLIENT_SECRET)}")
     
+    def _log_resume_section(self, section_name: str, data: Any, resume_id: str = None) -> None:
+        """Детальное логирование секции резюме"""
+        prefix = f"[Resume {resume_id}] " if resume_id else ""
+        
+        if data is None:
+            logger.info(f"{prefix}Section '{section_name}': None")
+            return
+            
+        if isinstance(data, list):
+            logger.info(f"{prefix}Section '{section_name}': {len(data)} items")
+            for i, item in enumerate(data):
+                logger.info(f"{prefix}  [{i}] {json.dumps(item, ensure_ascii=False, indent=2)}")
+        elif isinstance(data, dict):
+            logger.info(f"{prefix}Section '{section_name}': {json.dumps(data, ensure_ascii=False, indent=2)}")
+        else:
+            logger.info(f"{prefix}Section '{section_name}': {data}")
+    
+    def _log_resume_structure(self, resume: Dict[str, Any]) -> None:
+        """Логирование полной структуры резюме по секциям"""
+        resume_id = resume.get('id', 'unknown')
+        logger.info(f"=== RESUME STRUCTURE ANALYSIS [{resume_id}] ===")
+        
+        # Основные поля
+        basic_fields = ['id', 'title', 'status', 'access', 'created_at', 'updated_at', 'next_publish_at']
+        for field in basic_fields:
+            if field in resume:
+                logger.info(f"[Resume {resume_id}] {field}: {resume[field]}")
+        
+        # Персональная информация
+        personal_fields = ['first_name', 'last_name', 'middle_name', 'age', 'gender', 'birth_date']
+        personal_data = {field: resume.get(field) for field in personal_fields if field in resume}
+        if personal_data:
+            self._log_resume_section('personal_info', personal_data, resume_id)
+        
+        # Контактная информация
+        if 'contact' in resume:
+            self._log_resume_section('contact', resume['contact'], resume_id)
+        
+        # Локация
+        if 'area' in resume:
+            self._log_resume_section('area', resume['area'], resume_id)
+        
+        # Желаемая должность и зарплата
+        if 'salary' in resume:
+            self._log_resume_section('salary', resume['salary'], resume_id)
+        
+        # Специализации
+        if 'specialization' in resume:
+            self._log_resume_section('specialization', resume['specialization'], resume_id)
+        
+        # Опыт работы
+        if 'experience' in resume:
+            self._log_resume_section('experience', resume['experience'], resume_id)
+        
+        # Образование
+        if 'education' in resume:
+            self._log_resume_section('education', resume['education'], resume_id)
+        
+        # Языки
+        if 'language' in resume:
+            self._log_resume_section('languages', resume['language'], resume_id)
+        
+        # Навыки
+        if 'skill_set' in resume:
+            self._log_resume_section('skills', resume['skill_set'], resume_id)
+        
+        # Дополнительные поля
+        additional_fields = [
+            'citizenship', 'work_ticket', 'travel_time', 'recommendation', 
+            'resume_locale', 'certificate', 'driver_license_types', 
+            'has_vehicle', 'hidden_fields', 'owner', 'negotiations_history',
+            'download', 'alternate_url', 'can_publish_or_update'
+        ]
+        
+        for field in additional_fields:
+            if field in resume:
+                self._log_resume_section(field, resume[field], resume_id)
+        
+        # Проверяем наличие полнотекстовой версии
+        if 'full_text' in resume:
+            text_length = len(resume['full_text']) if resume['full_text'] else 0
+            logger.info(f"[Resume {resume_id}] full_text: {text_length} characters")
+            if text_length > 0:
+                # Логируем первые 500 символов полного текста
+                preview = resume['full_text'][:500]
+                logger.info(f"[Resume {resume_id}] full_text preview: {preview}...")
+        
+        logger.info(f"=== END RESUME STRUCTURE [{resume_id}] ===")
+    
+    def _log_rtf_content(self, rtf_content: str, resume_id: str) -> None:
+        """Детальное логирование RTF контента"""
+        logger.info(f"=== RTF CONTENT ANALYSIS [{resume_id}] ===")
+        logger.info(f"[Resume {resume_id}] RTF raw length: {len(rtf_content)} characters")
+        
+        # Логируем первые 1000 символов RTF
+        rtf_preview = rtf_content[:1000]
+        logger.info(f"[Resume {resume_id}] RTF preview: {rtf_preview}...")
+        
+        # Проверяем RTF заголовки и кодировку
+        rtf_lines = rtf_content.split('\n')[:10]  # Первые 10 строк
+        for i, line in enumerate(rtf_lines):
+            logger.info(f"[Resume {resume_id}] RTF line {i}: {line}")
+        
+        # Пытаемся извлечь текст и логируем результат
+        try:
+            plain_text = rtf_to_text(rtf_content)
+            logger.info(f"[Resume {resume_id}] RTF->Text conversion successful, length: {len(plain_text)}")
+            
+            # Логируем первые 500 символов извлеченного текста
+            text_preview = plain_text[:500]
+            logger.info(f"[Resume {resume_id}] Extracted text preview: {text_preview}...")
+            
+        except Exception as e:
+            logger.error(f"[Resume {resume_id}] RTF->Text conversion failed: {str(e)}")
+        
+        logger.info(f"=== END RTF CONTENT [{resume_id}] ===")
+
     async def get_dictionaries(self):
         """Get HH dictionaries"""
         async with httpx.AsyncClient() as client:
@@ -37,7 +157,8 @@ class HHClient:
             
             response.raise_for_status()
             return response.json()
-    async def revoke_hh_token(access_token: str):
+    
+    async def revoke_hh_token(self, access_token: str):
         """Отзыв токена HH"""
         try:
             async with httpx.AsyncClient() as client:
@@ -47,8 +168,9 @@ class HHClient:
                 )
                 return response.status_code == 204
         except Exception as e:
-            print(f"Error revoking token: {e}")
+            logger.error(f"Error revoking token: {e}")
             return False
+    
     async def exchange_code_for_token(self, code: str) -> dict:
         """Exchange OAuth code for access token"""
         async with httpx.AsyncClient() as client:
@@ -207,8 +329,8 @@ class HHClient:
             
             return user_data
     
-    async def get_resumes(self, token: str) -> list:
-        """Get all user resumes with full text"""
+    async def get_resumes(self, token: str, with_full_text: bool = True) -> list:
+        """Get all user resumes with optional full text"""
         async with httpx.AsyncClient() as client:
             url = f"{self.base_url}/resumes/mine"
             logger.info(f"GET {url}")
@@ -221,49 +343,74 @@ class HHClient:
             logger.info(f"Response: {response.status_code}")
             
             if response.status_code != 200:
+                logger.error(f"Failed to get resumes list: {response.status_code}")
                 return []
                 
             resume_list = response.json()
+            logger.info(f"Found {len(resume_list.get('items', []))} resumes")
+            
             resumes = []
             
             for resume_item in resume_list.get("items", []):
+                resume_id = resume_item['id']
+                logger.info(f"Processing resume {resume_id}")
+                
                 # Get resume details
-                resume_url = f"{self.base_url}/resumes/{resume_item['id']}"
+                resume_url = f"{self.base_url}/resumes/{resume_id}"
                 logger.info(f"GET {resume_url}")
                 
                 resume_response = await client.get(
                     resume_url,
                     headers={"Authorization": f"Bearer {token}"}
                 )
-                logger.info(f"Response: {resume_response.status_code}")
+                logger.info(f"Resume details response: {resume_response.status_code}")
                 
                 if resume_response.status_code == 200:
                     resume = resume_response.json()
                     
-                    # Get plaintext version
-                    text_url = f"{self.base_url}/resumes/{resume_item['id']}/download/rtf-file.rtf?type=rtf"
-                    logger.info(f"GET {text_url}")
+                    # Логируем структуру резюме
+                    self._log_resume_structure(resume)
                     
-                    rtf_response = await client.get(
-                        text_url,
-                        headers={"Authorization": f"Bearer {token}"}
-                    )
-                    logger.info(f"Response: {rtf_response.status_code}, size: {len(rtf_response.content)} bytes")
-                    
-                    if rtf_response.status_code == 200:
-                        try:
-                            # RTF файл приходит в байтах, декодируем в строку
-                            rtf_content = rtf_response.content.decode('utf-8', errors='ignore')
-                            resume["full_text"] = rtf_to_text(rtf_content)
-                        except Exception as e:
-                            logger.error(f"Failed to parse RTF: {e}")
+                    if with_full_text:
+                        # Get RTF version
+                        rtf_url = f"{self.base_url}/resumes/{resume_id}/download/rtf-file.rtf?type=rtf"
+                        logger.info(f"GET {rtf_url}")
+                        
+                        rtf_response = await client.get(
+                            rtf_url,
+                            headers={"Authorization": f"Bearer {token}"}
+                        )
+                        logger.info(f"RTF response: {rtf_response.status_code}, size: {len(rtf_response.content)} bytes")
+                        
+                        if rtf_response.status_code == 200:
+                            try:
+                                # RTF файл приходит в байтах, декодируем в строку
+                                rtf_content = rtf_response.content.decode('utf-8', errors='ignore')
+                                
+                                # Логируем RTF контент
+                                self._log_rtf_content(rtf_content, resume_id)
+                                
+                                # Конвертируем RTF в текст
+                                resume["full_text"] = rtf_to_text(rtf_content)
+                                resume["rtf_raw"] = rtf_content  # Сохраняем и сырой RTF
+                                
+                            except Exception as e:
+                                logger.error(f"Failed to parse RTF for resume {resume_id}: {e}")
+                                resume["full_text"] = ""
+                                resume["rtf_raw"] = ""
+                        else:
+                            logger.warning(f"Failed to download RTF for resume {resume_id}: {rtf_response.status_code}")
                             resume["full_text"] = ""
+                            resume["rtf_raw"] = ""
                     
                     resumes.append(resume)
+                else:
+                    logger.error(f"Failed to get resume {resume_id} details: {resume_response.status_code}")
             
+            logger.info(f"Successfully processed {len(resumes)} resumes")
             return resumes
     
-    async def get_resume(self, token: str, resume_id: str = None) -> dict:
+    async def get_resume(self, token: str, resume_id: str = None, with_full_text: bool = True) -> dict:
         """Get specific resume by ID or first resume"""
         if resume_id:
             async with httpx.AsyncClient() as client:
@@ -274,36 +421,102 @@ class HHClient:
                     url,
                     headers={"Authorization": f"Bearer {token}"}
                 )
-                logger.info(f"Response: {response.status_code}")
+                logger.info(f"Resume response: {response.status_code}")
                 
                 if response.status_code == 200:
                     resume = response.json()
                     
-                    # Get plaintext version
-                    text_url = f"{self.base_url}/resumes/{resume_id}/download/rtf-file.rtf?type=rtf"
-                    logger.info(f"GET {text_url}")
+                    # Логируем структуру резюме
+                    self._log_resume_structure(resume)
                     
-                    rtf_response = await client.get(
-                        text_url,
-                        headers={"Authorization": f"Bearer {token}"}
-                    )
-                    logger.info(f"Response: {rtf_response.status_code}, size: {len(rtf_response.content)} bytes")
-                    
-                    if rtf_response.status_code == 200:
-                        try:
-                            # RTF файл приходит в байтах, декодируем в строку
-                            rtf_content = rtf_response.content.decode('utf-8', errors='ignore')
-                            resume["full_text"] = rtf_to_text(rtf_content)
-                        except Exception as e:
-                            logger.error(f"Failed to parse RTF: {e}")
-                            resume["full_text"] = ""
+                    if with_full_text:
+                        # Get RTF version
+                        rtf_url = f"{self.base_url}/resumes/{resume_id}/download/rtf-file.rtf?type=rtf"
+                        logger.info(f"GET {rtf_url}")
+                        
+                        rtf_response = await client.get(
+                            rtf_url,
+                            headers={"Authorization": f"Bearer {token}"}
+                        )
+                        logger.info(f"RTF response: {rtf_response.status_code}, size: {len(rtf_response.content)} bytes")
+                        
+                        if rtf_response.status_code == 200:
+                            try:
+                                # RTF файл приходит в байтах, декодируем в строку
+                                rtf_content = rtf_response.content.decode('utf-8', errors='ignore')
+                                
+                                # Логируем RTF контент
+                                self._log_rtf_content(rtf_content, resume_id)
+                                
+                                # Конвертируем RTF в текст
+                                resume["full_text"] = rtf_to_text(rtf_content)
+                                resume["rtf_raw"] = rtf_content  # Сохраняем и сырой RTF
+                                
+                            except Exception as e:
+                                logger.error(f"Failed to parse RTF for resume {resume_id}: {e}")
+                                resume["full_text"] = ""
+                                resume["rtf_raw"] = ""
                         
                     return resume
                 return None
         else:
             # Get first resume for backward compatibility
-            resumes = await self.get_resumes(token)
+            resumes = await self.get_resumes(token, with_full_text)
             return resumes[0] if resumes else None
+    
+    async def get_resume_sections(self, token: str, resume_id: str) -> Dict[str, Any]:
+        """Get resume data organized by sections"""
+        resume = await self.get_resume(token, resume_id, with_full_text=True)
+        
+        if not resume:
+            return {}
+        
+        sections = {
+            'basic_info': {
+                'id': resume.get('id'),
+                'title': resume.get('title'),
+                'status': resume.get('status'),
+                'created_at': resume.get('created_at'),
+                'updated_at': resume.get('updated_at'),
+                'alternate_url': resume.get('alternate_url')
+            },
+            'personal': {
+                'first_name': resume.get('first_name'),
+                'last_name': resume.get('last_name'),
+                'middle_name': resume.get('middle_name'),
+                'age': resume.get('age'),
+                'gender': resume.get('gender'),
+                'birth_date': resume.get('birth_date')
+            },
+            'contact': resume.get('contact', {}),
+            'location': resume.get('area', {}),
+            'salary': resume.get('salary', {}),
+            'specializations': resume.get('specialization', []),
+            'experience': resume.get('experience', []),
+            'education': resume.get('education', {}),
+            'languages': resume.get('language', []),
+            'skills': resume.get('skill_set', []),
+            'citizenship': resume.get('citizenship', []),
+            'work_ticket': resume.get('work_ticket', []),
+            'travel_time': resume.get('travel_time', {}),
+            'driver_license': resume.get('driver_license_types', []),
+            'has_vehicle': resume.get('has_vehicle'),
+            'full_text': resume.get('full_text', ''),
+            'rtf_raw': resume.get('rtf_raw', '')
+        }
+        
+        # Логируем секции
+        logger.info(f"=== RESUME SECTIONS SUMMARY [{resume_id}] ===")
+        for section_name, section_data in sections.items():
+            if section_data:
+                if isinstance(section_data, list):
+                    logger.info(f"Section '{section_name}': {len(section_data)} items")
+                elif isinstance(section_data, dict):
+                    logger.info(f"Section '{section_name}': {len(section_data)} fields")
+                else:
+                    logger.info(f"Section '{section_name}': {type(section_data).__name__}")
+        
+        return sections
     
     async def search_vacancies(self, token: str, params: dict) -> dict:
         """Search vacancies"""
@@ -341,11 +554,11 @@ class HHClient:
             response.raise_for_status()
             return response.json()
     
-   
     async def apply_to_vacancy(self, token: str, vacancy_id: str, message: str, resume_id: str = None) -> dict:
+        """Apply to vacancy"""
         async with httpx.AsyncClient() as client:
             if not resume_id:
-                resume = await self.get_resume(token)
+                resume = await self.get_resume(token, with_full_text=False)
                 if not resume:
                     raise HTTPException(400, "No resume found")
                 resume_id = resume["id"]
@@ -363,12 +576,15 @@ class HHClient:
                 "message": message
             }
 
+            logger.info(f"POST {url}, vacancy_id: {vacancy_id}, resume_id: {resume_id}")
             response = await client.post(url, headers=headers, data=form_data)
 
             if response.status_code in [201, 204]:
+                logger.info(f"Successfully applied to vacancy {vacancy_id}")
                 return {"status": "success", "message": "Application sent successfully"}
 
             if response.status_code == 403:
+                logger.warning(f"Already applied or access denied for vacancy {vacancy_id}")
                 return {"status": "error", "message": "Already applied or access denied"}
 
             # Обработка ошибок

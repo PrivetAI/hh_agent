@@ -71,16 +71,16 @@ async def get_vacancy_details(vacancy_id: str, user: User = Depends(get_current_
     return await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
 
 
-@router.post("/vacancy/{vacancy_id}/analyze")
-async def analyze_vacancy(
-    vacancy_id: str,
-    resume_id: Optional[str] = Query(None),
-    user: User = Depends(get_current_user),
-):
-    """Analyze vacancy match (free)"""
-    return await hh_service.analyze_vacancy_match(
-        user.hh_user_id, vacancy_id, resume_id
-    )
+# @router.post("/vacancy/{vacancy_id}/analyze") dont use anymore
+# async def analyze_vacancy(
+#     vacancy_id: str,
+#     resume_id: Optional[str] = Query(None),
+#     user: User = Depends(get_current_user),
+# ):
+#     """Analyze vacancy match (free)"""
+#     return await hh_service.analyze_vacancy_match(
+#         user.hh_user_id, vacancy_id, resume_id
+#     )
 
 
 @router.post("/vacancy/{vacancy_id}/generate-letter", response_model=CoverLetter)
@@ -98,11 +98,12 @@ async def generate_letter(
         vacancy = await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
         vacancy_title = vacancy.get("name", "Неизвестная вакансия")
         
-        # Generate letter (возвращает content, prompt_filename и ai_model)
+        # Generate letter with user_id for pseudonymization
         result = await hh_service.generate_cover_letter(
             user.hh_user_id, 
             vacancy_id, 
-            resume_id
+            resume_id,
+            str(user.id)  # Передаем user_id для псевдонимизации
         )
         
         # Списываем кредит за генерацию
@@ -130,7 +131,6 @@ async def generate_letter(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-
 
 @router.post("/vacancy/{vacancy_id}/apply")
 async def apply_to_vacancy(

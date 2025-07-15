@@ -2,10 +2,12 @@ import os
 import re
 import json
 import logging
-import random  # Добавить импорт
-from typing import Dict, Any, Tuple  # Обновить импорт
+import random
+from typing import Dict, Any, Tuple
 from openai import AsyncOpenAI
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from ..core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,10 @@ class AIService:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
         self.client = AsyncOpenAI(api_key=api_key)
+        
+        # Инициализируем сервис псевдонимизации
+        from .pseudonymization_service import PseudonymizationService
+        self.pseudonymizer = PseudonymizationService()
         
         # Доступные модели
         self.models = ["gpt-4o-mini", "gpt-4.1-mini"]
@@ -69,14 +75,17 @@ class AIService:
         
         return text.strip()
     
-    def _prepare_resume_text(self, resume: dict) -> str:
+    def _prepare_resume_text(self, resume: dict, is_pseudonymized: bool = False) -> str:
         """Prepare resume text for AI analysis"""
         parts = []
         
         # Basic info
         full_name = f"{resume.get('first_name', '')} {resume.get('last_name', '')}".strip()
         if full_name:
-            parts.append(f"Кандидат: {full_name}")
+            if is_pseudonymized:
+                parts.append(f"Кандидат: {full_name}")
+            else:
+                parts.append(f"Кандидат: {full_name}")
         
         if resume.get('title'):
             parts.append(f"Желаемая должность: {resume['title']}")
@@ -155,8 +164,8 @@ class AIService:
         
         return '\n'.join(parts)
     
-    async def generate_cover_letter(self, resume: dict, vacancy: dict) -> Dict[str, Any]:
-        """Generate personalized cover letter with random model and prompt selection"""
+    async def generate_cover_letter(self, resume: dict, vacancy: dict, user_id: str) -> Dict[str, Any]:
+        """Generate personalized cover letter with pseudonymization"""
         # Случайный выбор модели и промпта
         selected_model = random.choice(self.models)
         selected_prompt = random.choice(self.prompts)
@@ -168,16 +177,31 @@ class AIService:
         last_name = resume.get('last_name', '')
         full_name = f"{first_name} {last_name}".strip()
         
+        # Получаем сессию БД для псевдонимизации
+        db_gen = get_db()
+        db = next(db_gen)
+        
         try:
+            # Псевдонимизируем резюме перед отправкой в AI
+            logger.info(f"Pseudonymizing resume for user {user_id}")
+            pseudo_resume, session_id = self.pseudonymizer.pseudonymize_resume(
+                db, user_id, resume
+            )
+            logger.info(f"Resume pseudonymized, session_id: {session_id}")
+            
             # Load selected prompt from file
             system_prompt = self._load_prompt(selected_prompt)
+            
+            # Добавляем инструкцию о псевдонимах в системный промпт
+            system_prompt += "\n\nВАЖНО: В резюме используются псевдонимы для защиты персональных данных. Используй эти псевдонимы в письме как есть, не пытайся их расшифровать или заменить."
+            
             logger.info(f"System prompt loaded from {selected_prompt}: {system_prompt[:100]}...")
             
-            resume_text = self._prepare_resume_text(resume)
+            resume_text = self._prepare_resume_text(pseudo_resume, is_pseudonymized=True)
             vacancy_text = self._prepare_vacancy_text(vacancy)
             
             user_prompt = f"""
-Резюме кандидата:
+Резюме кандидата (с псевдонимами для защиты данных):
 {resume_text}
 
 Текст вакансии:
@@ -203,13 +227,18 @@ class AIService:
             
             letter = response.choices[0].message.content.strip()
             
+            # Восстанавливаем оригинальные данные в письме
+            logger.info(f"Restoring original data in the letter")
+            letter = self.pseudonymizer.restore_text(db, session_id, letter)
+            
             logger.info(f"Cover letter generated successfully with model {selected_model}. Words: {len(letter.split())}")
             logger.debug(f"Generated letter preview: {letter[:200]}...")
             
             return {
                 "content": letter,
                 "prompt_filename": selected_prompt,
-                "ai_model": selected_model
+                "ai_model": selected_model,
+                "pseudonymization_session_id": str(session_id)  # Для аудита
             }
             
         except Exception as e:
@@ -220,6 +249,8 @@ class AIService:
             fallback_result["prompt_filename"] = selected_prompt
             fallback_result["ai_model"] = selected_model
             return fallback_result
+        finally:
+            db.close()
 
     def _get_fallback_letter(self, vacancy: dict, full_name: str) -> Dict[str, Any]:
         """Return fallback cover letter on error"""
@@ -241,3 +272,5 @@ class AIService:
         return {
             "content": fallback_letter,
         }
+    
+  

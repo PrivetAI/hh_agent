@@ -229,32 +229,17 @@ class HHService:
         finally:
             db_gen.close()
 
-    async def analyze_vacancy_match(self, hh_user_id: str, vacancy_id: str, resume_id: str) -> Dict[str, Any]:
-        """Analyze match between resume and vacancy"""
-        cache_key = f"analysis:{hh_user_id}:{vacancy_id}:{resume_id}"
-        cached = await self.redis_service.get_json(cache_key)
-        if cached:
-            return cached
-        
-        token = await self._get_token(hh_user_id)
-        resume = await self.get_user_resume(hh_user_id, resume_id)
-        
-        # Получаем вакансию из БД или с API
-        vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
-        
-        score = await self.ai_service.analyze_match(resume, vacancy)
-        await self.redis_service.set_json(cache_key, score, 86400)
-        return score
 
-    async def generate_cover_letter(self, hh_user_id: str, vacancy_id: str, resume_id: str) -> Dict[str, Any]:
-        """Generate cover letter for vacancy"""
+    async def generate_cover_letter(self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None) -> Dict[str, Any]:
+        """Generate cover letter for vacancy with pseudonymization"""
         token = await self._get_token(hh_user_id)
         resume = await self.get_user_resume(hh_user_id, resume_id)
         
         # Получаем вакансию из БД или с API
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
         
-        return await self.ai_service.generate_cover_letter(resume, vacancy)
+        # Передаем user_id для псевдонимизации
+        return await self.ai_service.generate_cover_letter(resume, vacancy, user_id)
 
     async def get_dictionaries(self) -> Dict[str, Any]:
         """Get HH dictionaries with caching"""
