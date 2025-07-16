@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, HTTPException, sta
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
+from typing import Dict, Any
 
 from ...api.deps import get_current_user, check_user_credits, get_db
 from ...crud.user import UserCRUD
@@ -69,18 +70,6 @@ async def get_vacancies(
 async def get_vacancy_details(vacancy_id: str, user: User = Depends(get_current_user)):
     """Get full vacancy details"""
     return await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
-
-
-# @router.post("/vacancy/{vacancy_id}/analyze") dont use anymore
-# async def analyze_vacancy(
-#     vacancy_id: str,
-#     resume_id: Optional[str] = Query(None),
-#     user: User = Depends(get_current_user),
-# ):
-#     """Analyze vacancy match (free)"""
-#     return await hh_service.analyze_vacancy_match(
-#         user.hh_user_id, vacancy_id, resume_id
-#     )
 
 
 @router.post("/vacancy/{vacancy_id}/generate-letter", response_model=CoverLetter)
@@ -246,3 +235,22 @@ async def get_history(
     """Get user's sent letters history"""
     history = LetterGenerationCRUD.get_user_history(db, user.id)
     return history
+
+@router.get("/saved-searches")
+async def get_saved_searches(
+    user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Get user's saved searches from HH"""
+    logger.info(f"Getting saved searches for user {user.hh_user_id}")
+    
+    try:
+        saved_searches = await hh_service.get_saved_searches(user.hh_user_id)
+        return saved_searches
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting saved searches: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get saved searches"
+        )

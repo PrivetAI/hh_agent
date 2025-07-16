@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Dict, List
 from fastapi import HTTPException
 from ...core.config import settings
-
+from typing import Dict,Any
 logger = logging.getLogger(__name__)
 
 class HHClient:
@@ -199,3 +199,52 @@ class HHClient:
                 status_code=response.status_code,
                 detail=f"Failed to apply: {error_detail}"
             )
+    async def get_saved_searches(self, token: str) -> Dict[str, Any]:
+        """Get user's saved searches"""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/saved_searches/vacancies",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"per_page": 100}  # Get up to 100 saved searches
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Failed to get saved searches: {response.status_code}")
+                error_data = response.json() if response.headers.get('content-type') == 'application/json' else {}
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=error_data.get('description', 'Failed to get saved searches')
+                )
+
+            return response.json()
+
+    async def search_vacancies_by_url(self, token: str, search_url: str, page: int = 0, per_page: int = 20) -> Dict[str, Any]:
+        """Search vacancies using direct URL from saved search"""
+        # Parse the URL to extract base and params
+        from urllib.parse import urlparse, parse_qs, urlencode
+
+        parsed = urlparse(search_url)
+        params = parse_qs(parsed.query)
+
+        # Convert lists to single values and update pagination
+        clean_params = {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in params.items()}
+        clean_params['page'] = page
+        clean_params['per_page'] = per_page
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/vacancies",
+                params=clean_params,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Failed to search vacancies: {response.status_code}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail="Failed to search vacancies"
+                )
+
+            result = response.json()
+            logger.info(f"Found {result.get('found', 0)} vacancies from saved search")
+            return result

@@ -191,3 +191,23 @@ class DePseudonymizationResponse(BaseModel):
     original_text: str
     session_id: UUID
     mappings_found: int
+    
+class SavedSearchItem(BaseModel):
+    id: str
+    name: str
+    url: str
+    new_items_url: str
+    created_at: str
+    new_items_count: int
+    
+    class Config:
+        from_attributes = True
+
+class SavedSearchesResponse(BaseModel):
+    items: List[SavedSearchItem]
+    page: int
+    per_page: int
+    found: int
+    
+    class Config:
+        from_attributes = True
