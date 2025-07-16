@@ -65,7 +65,7 @@ class AuthResponse(BaseModel):
     refresh_token: Optional[str] = None
     user: User
 
-# Resume schemas
+# Resume schemas - ИСПРАВЛЕНО: убрано full_text
 class ResumeResponse(BaseModel):
     id: str
     first_name: str
@@ -73,7 +73,15 @@ class ResumeResponse(BaseModel):
     title: str
     total_experience: Optional[Dict[str, Any]] = None
     skill_set: Optional[List[str]] = None
-    full_text: str
+    experience: Optional[List[Dict[str, Any]]] = None
+    education: Optional[Dict[str, Any]] = None
+    language: Optional[List[Dict[str, Any]]] = None
+    specialization: Optional[List[Dict[str, Any]]] = None
+    area: Optional[Dict[str, Any]] = None
+    salary: Optional[Dict[str, Any]] = None
+    age: Optional[int] = None
+    gender: Optional[Dict[str, Any]] = None
+    contact: Optional[List[Dict[str, Any]]] = None
 
 # Dictionary schemas
 class Dictionaries(BaseModel):

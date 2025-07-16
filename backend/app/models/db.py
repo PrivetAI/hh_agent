@@ -27,7 +27,7 @@ class User(Base):
 class Payment(Base):
     __tablename__ = "payments"
     
-    id = Column(Integer, primary_key=True, autoincrement=True)  # Обязательно INTEGER для Robokassa InvId
+    id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     credits = Column(Integer, nullable=False)
@@ -38,7 +38,7 @@ class Payment(Base):
     # Relationships
     user = relationship("User", back_populates="payments")
     
-class LetterGeneration(Base):  # НЕ BaseModel, а Base!
+class LetterGeneration(Base):
     __tablename__ = "letter_generations"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -46,7 +46,9 @@ class LetterGeneration(Base):  # НЕ BaseModel, а Base!
     vacancy_id = Column(String, nullable=False)
     vacancy_title = Column(String, nullable=False)
     resume_id = Column(String)
-    letter_content = Column(String, nullable=False)
+    letter_content = Column(Text, nullable=False)
+    prompt_filename = Column(String)  # Какой промпт использовался
+    ai_model = Column(String)  # Какая модель использовалась
     created_at = Column(DateTime, server_default=func.now())
     
     # Relationships
@@ -73,7 +75,7 @@ class Vacancy(Base):
     # Метки времени
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    last_searched_at = Column(DateTime, server_default=func.now())  # Последний раз появлялась в поиске
+    last_searched_at = Column(DateTime, server_default=func.now())
     
     # Relationships
     applications = relationship("Application", back_populates="vacancy")
@@ -84,8 +86,8 @@ class Application(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     vacancy_id = Column(String, ForeignKey("vacancies.id"), nullable=False)
-    resume_id = Column(String)  # ID резюме которое использовалось
-    message = Column(Text, nullable=False)  # Сопроводительное письмо
+    resume_id = Column(String)
+    message = Column(Text, nullable=False)
     prompt_filename = Column(String)  # Какой промпт использовался для генерации
     ai_model = Column(String)  # Какая модель использовалась
     created_at = Column(DateTime, server_default=func.now())
@@ -94,7 +96,7 @@ class Application(Base):
     user = relationship("User", back_populates="applications")
     vacancy = relationship("Vacancy", back_populates="applications")
 
-# Pseudonymization models
+# Simplified Pseudonymization models
 class MappingSession(Base):
     __tablename__ = "mapping_sessions"
     __table_args__ = {'schema': 'pseudonymization'}
@@ -114,14 +116,10 @@ class Mapping(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey("pseudonymization.mapping_sessions.id", ondelete="CASCADE"), nullable=False)
-    original_value = Column(Text, nullable=True)  # Вместо nullable=False
+    original_value = Column(Text, nullable=True)
     pseudonym = Column(Text, nullable=False)
-    data_type = Column(String(50), nullable=False)  # 'name', 'email', 'phone', 'company', etc
+    data_type = Column(String(50), nullable=False)  # 'company', 'education'
     created_at = Column(DateTime, server_default=func.now())
     
     # Relationships
     session = relationship("MappingSession", back_populates="mappings")
-
-    # Индексы будут созданы в Alembic миграции или отдельно
-    # CREATE INDEX idx_mappings_session ON pseudonymization.mappings(session_id);
-    # CREATE INDEX idx_mappings_pseudonym ON pseudonymization.mappings(session_id, pseudonym);

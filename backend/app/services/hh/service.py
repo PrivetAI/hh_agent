@@ -1,15 +1,17 @@
-from datetime import datetime  # Добавить в начало файла
+from datetime import datetime
 import asyncio
 from typing import Dict, Any, Optional, List
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-
+import logging
 from .client import HHClient
 from ..redis_service import RedisService
 from ..ai_service import AIService
 from ...core.config import settings
 from ...core.database import get_db
 from ...crud.vacancy import VacancyCRUD
+
+
 
 class HHService:
     def __init__(self):
@@ -25,16 +27,18 @@ class HHService:
         return token
 
     async def get_user_resumes(self, hh_user_id: str) -> List[Dict[str, Any]]:
-        """Get all user's resumes with full text"""
-        cached = await self.redis_service.get_json(f"resumes:full:{hh_user_id}")
+        """Get all user's resumes from API (without RTF)"""
+        # Кеширование на 1 минуту
+        cached = await self.redis_service.get_json(f"resumes:api:{hh_user_id}")
         if cached:
             return cached
 
         token = await self._get_token(hh_user_id)
         resumes = await self.hh_client.get_resumes(token)
 
+        # Возвращаем полные данные из API, они уже содержат все необходимые поля
         # Cache for 1 minute
-        await self.redis_service.set_json(f"resumes:full:{hh_user_id}", resumes, 60)
+        await self.redis_service.set_json(f"resumes:api:{hh_user_id}", resumes, 60)
         return resumes
 
     async def get_user_resume(self, hh_user_id: str, resume_id: str = None) -> Optional[Dict[str, Any]]:
@@ -74,18 +78,14 @@ class HHService:
         result = await self.hh_client.search_vacancies(token, params)
 
         if "items" in result and result["items"]:
-            # Получаем database session
             db_gen = get_db()
             db = next(db_gen)
 
             try:
-                # Собираем ID всех вакансий из результатов
                 vacancy_ids = [v["id"] for v in result["items"]]
-
-                # Обновляем last_searched_at для всех найденных вакансий
                 VacancyCRUD.update_last_searched(db, vacancy_ids)
 
-                # Определяем какие вакансии нужно обновить (старше 12ч или отсутствуют)
+                # Определяем какие вакансии нужно обновить
                 stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
 
                 # Загружаем из БД актуальные вакансии
@@ -103,11 +103,9 @@ class HHService:
                     for i in range(0, len(stale_ids), batch_size):
                         batch = stale_ids[i:i + batch_size]
 
-                        # Add delay between batches (except for first batch)
                         if i > 0:
                             await asyncio.sleep(settings.HH_BATCH_DELAY)
 
-                        # Process batch
                         batch_tasks = []
                         for vacancy_id in batch:
                             batch_tasks.append(self._load_and_save_vacancy(token, vacancy_id, db))
@@ -117,33 +115,30 @@ class HHService:
                         for vacancy_id, result_item in zip(batch, batch_results):
                             if isinstance(result_item, Exception):
                                 print(f"Error loading vacancy {vacancy_id}: {result_item}")
-                                # Используем базовую информацию из поиска
                                 basic_info = next((v for v in result["items"] if v["id"] == vacancy_id), None)
                                 if basic_info:
                                     fresh_vacancies[vacancy_id] = self._get_basic_vacancy_info(basic_info)
                             else:
                                 fresh_vacancies[vacancy_id] = result_item
 
-                # Формируем финальный результат с правильным порядком
+                # Формируем финальный результат
                 final_items = []
                 for vacancy in result["items"]:
                     if vacancy["id"] in fresh_vacancies:
                         final_items.append(fresh_vacancies[vacancy["id"]])
                     else:
-                        # Fallback для вакансий, которые не удалось загрузить
                         final_items.append(self._get_basic_vacancy_info(vacancy))
 
                 result["items"] = final_items
 
             finally:
-                # Закрываем сессию
                 db.close()
 
         return result
+
     async def _load_and_save_vacancy(self, token: str, vacancy_id: str, db: Session) -> Dict[str, Any]:
         """Load vacancy from HH API and save to DB"""
         try:
-            # Get full vacancy data
             full_vacancy = await self.hh_client.get_vacancy(token, vacancy_id)
             
             # Extract description as plain text
@@ -152,64 +147,35 @@ class HHService:
                     full_vacancy.get("description", "")
                 )
             
-            # Save to DB
             VacancyCRUD.create_or_update(db, full_vacancy)
-            
-            # Extract essential fields for response
-            return self._extract_vacancy_details(full_vacancy)
+            return full_vacancy
             
         except Exception as e:
             print(f"Error loading vacancy {vacancy_id}: {e}")
             raise e
 
-    def _extract_vacancy_details(self, full_vacancy: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract essential fields from full vacancy"""
-        return {
-            "id": full_vacancy["id"],
-            "name": full_vacancy.get("name", ""),
-            "salary": full_vacancy.get("salary"),
-            "employer": full_vacancy.get("employer", {"name": "Не указано"}),
-            "area": full_vacancy.get("area", {"name": "Не указано"}),
-            "published_at": full_vacancy.get("published_at"),
-            "schedule": full_vacancy.get("schedule"),
-            "employment": full_vacancy.get("employment"),
-            "description": full_vacancy.get("description", ""),
-            "snippet": full_vacancy.get("snippet"),
-            "experience": full_vacancy.get("experience"),
-            "key_skills": full_vacancy.get("key_skills", []),
-            "professional_roles": full_vacancy.get("professional_roles", []),
-            "accept_handicapped": full_vacancy.get("accept_handicapped"),
-            "accept_kids": full_vacancy.get("accept_kids"),
-            "branded_description": full_vacancy.get("branded_description"),
-            "vacancy_constructor_template": full_vacancy.get("vacancy_constructor_template"),
-            "working_days": full_vacancy.get("working_days"),
-            "working_time_intervals": full_vacancy.get("working_time_intervals"),
-            "working_time_modes": full_vacancy.get("working_time_modes")
-        }
-
-    def _get_basic_vacancy_info(self, vacancy: Dict[str, Any]) -> Dict[str, Any]:
-        """Return basic vacancy info on error"""
-        return {
-            "id": vacancy["id"],
-            "name": vacancy.get("name", ""),
-            "salary": vacancy.get("salary"),
-            "employer": vacancy.get("employer", {"name": "Не указано"}),
-            "area": vacancy.get("area", {"name": "Не указано"}),
-            "published_at": vacancy.get("published_at"),
-            "snippet": vacancy.get("snippet"),
-            "description": "Не удалось загрузить описание"
-        }
+    # def _get_basic_vacancy_info(self, vacancy: Dict[str, Any]) -> Dict[str, Any]:
+    #     """Return basic vacancy info on error"""
+    #     return {
+    #         "id": vacancy["id"],
+    #         "name": vacancy.get("name", ""),
+    #         "salary": vacancy.get("salary"),
+    #         "employer": vacancy.get("employer", {"name": "Не указано"}),
+    #         "area": vacancy.get("area", {"name": "Не указано"}),
+    #         "published_at": vacancy.get("published_at"),
+    #         "snippet": vacancy.get("snippet"),
+    #         "description": "Не удалось загрузить описание"
+    #     }
 
     async def get_vacancy_details(self, hh_user_id: str, vacancy_id: str) -> Dict[str, Any]:
         """Get full vacancy details with DB caching"""
-        # Сначала проверяем БД
         db_gen = get_db()
         db = next(db_gen)
         
         try:
             db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
             
-            # Если вакансия свежая (обновлена менее 12ч назад), возвращаем из БД
+            # Если вакансия свежая, возвращаем из БД
             if db_vacancy and (datetime.utcnow() - db_vacancy.updated_at).total_seconds() < 43200:
                 return db_vacancy.full_data
             
@@ -221,19 +187,18 @@ class HHService:
             if vacancy.get("description"):
                 vacancy["description"] = self.ai_service._extract_text(vacancy.get("description", ""))
             
-            # Сохраняем в БД
             VacancyCRUD.create_or_update(db, vacancy)
-            
-            return self._extract_vacancy_details(vacancy)
+            return vacancy
             
         finally:
             db_gen.close()
 
-
     async def generate_cover_letter(self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None) -> Dict[str, Any]:
         """Generate cover letter for vacancy with pseudonymization"""
-        token = await self._get_token(hh_user_id)
+        # Получаем резюме из API (без RTF)
         resume = await self.get_user_resume(hh_user_id, resume_id)
+        if not resume:
+            raise HTTPException(404, "Resume not found")
         
         # Получаем вакансию из БД или с API
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
