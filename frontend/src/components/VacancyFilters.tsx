@@ -9,20 +9,20 @@ interface VacancyFiltersProps {
 }
 
 export default function VacancyFilters({ onSearch, loading, selectedResumeId }: VacancyFiltersProps) {
-  const [activeTab, setActiveTab] = useState<'manual' | 'saved'>('manual')
+  const [activeTab, setActiveTab] = useState<'filters' | 'saved'>('filters')
 
   return (
     <div className="hh-card p-4 mb-4" id="filters">
       <div className="flex mb-4 border-b">
         <button
           className={`pb-2 px-4 font-medium ${
-            activeTab === 'manual'
+            activeTab === 'filters'
               ? 'border-b-2 border-blue-500 text-blue-600'
               : 'text-gray-600 hover:text-gray-800'
           }`}
-          onClick={() => setActiveTab('manual')}
+          onClick={() => setActiveTab('filters')}
         >
-          Поиск
+          Фильтры
         </button>
         <button
           className={`pb-2 px-4 font-medium ${
@@ -32,11 +32,11 @@ export default function VacancyFilters({ onSearch, loading, selectedResumeId }: 
           }`}
           onClick={() => setActiveTab('saved')}
         >
-          Сохраненные поиски
+          Избранные поиски
         </button>
       </div>
 
-      {activeTab === 'manual' && (
+      {activeTab === 'filters' && (
         <ManualFilters 
           onSearch={onSearch} 
           loading={loading} 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
@@ -14,8 +14,8 @@ from ...services.redis_service import RedisService
 import logging
 from ...models.schemas import (
     CoverLetter,
+    ApplicationCreate
 )
-from ...models.schemas import ApplicationCreate
 
 router = APIRouter(prefix="/api", tags=["vacancy"])
 hh_service = HHService()
@@ -37,18 +37,30 @@ async def get_vacancies(
     experience: Optional[str] = Query(None),
     employment: Optional[str] = Query(None),
     schedule: Optional[str] = Query(None),
+    remote: Optional[bool] = Query(None),
+    excluded_text: Optional[str] = Query(None),
     page: int = Query(0),
     per_page: int = Query(20, ge=20, le=100),
+    # New parameters for time-based filtering
+    period: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    # Parameters for resume-based search
+    resume_id: Optional[str] = Query(None),
+    for_resume: Optional[bool] = Query(None),
+    # Additional HH.ru parameters
+    saved_search_id: Optional[str] = Query(None),
+    no_magic: Optional[bool] = Query(None),
     user: User = Depends(get_current_user),
 ):
-    """Get vacancies list with full descriptions"""
+    """Get vacancies list with full descriptions - unified endpoint"""
     params = {"page": page, "per_page": per_page}
 
+    # Add filters only if they have values
     if text:
         params["text"] = text
     if area:
         params["area"] = area
-    if salary:
+    if salary is not None:
         params["salary"] = salary
     if only_with_salary:
         params["only_with_salary"] = "true"
@@ -58,12 +70,37 @@ async def get_vacancies(
         params["employment"] = employment
     if schedule:
         params["schedule"] = schedule
+    if remote is True:
+        params["remote"] = True
+    if excluded_text:
+        params["excluded_text"] = excluded_text
+    
+    # Time-based filtering parameters
+    if period is not None:
+        params["period"] = period
+    if date_from:
+        params["date_from"] = date_from
+    
+    # Additional HH.ru parameters
+    if saved_search_id:
+        params["saved_search_id"] = saved_search_id
+        params["per_page"] = 100
+    if no_magic is not None:
+        params["no_magic"] = "true" if no_magic else "false"
 
-    result = await hh_service.search_vacancies_with_descriptions(
-        user.hh_user_id, params
-    )
+    # Use appropriate search method based on for_resume flag
+    if for_resume and resume_id:
+        # Use resume-based search
+        result = await hh_service.search_vacancies_by_resume(
+            user.hh_user_id, resume_id, params
+        )
+    else:
+        # Use regular search
+        result = await hh_service.search_vacancies_with_descriptions(
+            user.hh_user_id, params
+        )
+    
     return result
-
 
 @router.get("/vacancy/{vacancy_id}")
 async def get_vacancy_details(vacancy_id: str, user: User = Depends(get_current_user)):
@@ -120,6 +157,7 @@ async def generate_letter(
             detail=str(e)
         )
 
+
 @router.post("/vacancy/{vacancy_id}/apply")
 async def apply_to_vacancy(
     vacancy_id: str,
@@ -139,7 +177,7 @@ async def apply_to_vacancy(
     
     error_message = None
     vacancy_title = "Неизвестная вакансия"
-    
+
     try:
         # Получаем информацию о вакансии для истории
         try:
@@ -227,6 +265,7 @@ async def apply_to_vacancy(
             detail=f"Ошибка при отправке отклика: {str(e)}"
         )
     
+
 @router.get("/history")
 async def get_history(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -234,45 +273,3 @@ async def get_history(
     """Get user's sent letters history"""
     history = LetterGenerationCRUD.get_user_history(db, user.id)
     return history
-
-# Добавить в роутер после существующих эндпоинтов
-
-@router.get("/vacancies/by-resume/{resume_id}")
-async def search_vacancies_by_resume(
-    resume_id: str,
-    text: Optional[str] = Query(None),
-    area: Optional[str] = Query(None),
-    salary: Optional[int] = Query(None),
-    only_with_salary: Optional[bool] = Query(False),
-    experience: Optional[str] = Query(None),
-    employment: Optional[str] = Query(None),
-    schedule: Optional[str] = Query(None),
-    remote: Optional[bool] = Query(None),
-    excluded_text: Optional[str] = Query(None),
-    page: int = Query(0),
-    per_page: int = Query(20, ge=1, le=100),
-    user: User = Depends(get_current_user),
-):
-    """Search vacancies similar to resume"""
-    params = {"page": page, "per_page": per_page}
-    
-    if text:
-        params["text"] = text
-    if area:
-        params["area"] = area
-    if salary:
-        params["salary"] = salary
-    if only_with_salary:
-        params["only_with_salary"] = "true"
-    if experience:
-        params["experience"] = experience
-    if employment:
-        params["employment"] = employment
-    if schedule:
-        params["schedule"] = schedule
-    if remote is True:
-        params["remote"] = True
-    if excluded_text:
-        params["excluded_text"] = excluded_text
-
-    return await hh_service.search_vacancies_by_resume(user.hh_user_id, resume_id, params)

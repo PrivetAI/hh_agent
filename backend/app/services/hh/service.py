@@ -42,7 +42,9 @@ class HHService:
         await self.redis_service.set_json(f"resumes:api:{hh_user_id}", resumes, 60)
         return resumes
 
-    async def get_user_resume(self, hh_user_id: str, resume_id: str = None) -> Optional[Dict[str, Any]]:
+    async def get_user_resume(
+        self, hh_user_id: str, resume_id: str = None
+    ) -> Optional[Dict[str, Any]]:
         """Get specific resume or first resume"""
         resumes = await self.get_user_resumes(hh_user_id)
         if not resumes:
@@ -52,17 +54,35 @@ class HHService:
             return next((r for r in resumes if r.get("id") == resume_id), None)
         return resumes[0]
 
-    async def search_vacancies(self, hh_user_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def search_vacancies(
+        self, hh_user_id: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Search vacancies without loading full descriptions"""
         token = await self._get_token(hh_user_id)
         result = await self.hh_client.search_vacancies(token, params)
-        
+
         return result
 
-    async def search_vacancies_with_descriptions(self, hh_user_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    # Updated search_vacancies_with_descriptions method in HHService class
+
+    async def search_vacancies_with_descriptions(
+        self, hh_user_id: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Search vacancies and load full descriptions with DB caching"""
         token = await self._get_token(hh_user_id)
-        result = await self.hh_client.search_vacancies(token, params)
+
+        # Check if this is a resume-based search
+        resume_id = params.pop("resume_id", None)
+        for_resume = params.pop("for_resume", False)
+
+        if for_resume and resume_id:
+            # Use resume-based search
+            result = await self.hh_client.search_vacancies_by_resume(
+                token, resume_id, params
+            )
+        else:
+            # Use regular search
+            result = await self.hh_client.search_vacancies(token, params)
 
         if "items" in result and result["items"]:
             db_gen = get_db()
@@ -88,22 +108,35 @@ class HHService:
                     batch_size = settings.HH_BATCH_SIZE
 
                     for i in range(0, len(stale_ids), batch_size):
-                        batch = stale_ids[i:i + batch_size]
+                        batch = stale_ids[i : i + batch_size]
 
                         if i > 0:
                             await asyncio.sleep(settings.HH_BATCH_DELAY)
 
                         batch_tasks = []
                         for vacancy_id in batch:
-                            batch_tasks.append(self._load_and_save_vacancy(token, vacancy_id, db))
+                            batch_tasks.append(
+                                self._load_and_save_vacancy(token, vacancy_id, db)
+                            )
 
-                        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                        batch_results = await asyncio.gather(
+                            *batch_tasks, return_exceptions=True
+                        )
 
                         for vacancy_id, result_item in zip(batch, batch_results):
                             if isinstance(result_item, Exception):
-                                logger.error(f"Error loading vacancy {vacancy_id}: {result_item}")
+                                logger.error(
+                                    f"Error loading vacancy {vacancy_id}: {result_item}"
+                                )
                                 # Keep original basic info from search results
-                                basic_info = next((v for v in result["items"] if v["id"] == vacancy_id), None)
+                                basic_info = next(
+                                    (
+                                        v
+                                        for v in result["items"]
+                                        if v["id"] == vacancy_id
+                                    ),
+                                    None,
+                                )
                                 if basic_info:
                                     fresh_vacancies[vacancy_id] = basic_info
                             else:
@@ -125,60 +158,71 @@ class HHService:
 
         return result
 
-    async def _load_and_save_vacancy(self, token: str, vacancy_id: str, db: Session) -> Dict[str, Any]:
+    async def _load_and_save_vacancy(
+        self, token: str, vacancy_id: str, db: Session
+    ) -> Dict[str, Any]:
         """Load vacancy from HH API and save to DB"""
         try:
             full_vacancy = await self.hh_client.get_vacancy(token, vacancy_id)
-            
+
             # Extract description as plain text
             if full_vacancy.get("description"):
                 full_vacancy["description"] = self.ai_service._extract_text(
                     full_vacancy.get("description", "")
                 )
-            
+
             VacancyCRUD.create_or_update(db, full_vacancy)
             return full_vacancy
-            
+
         except Exception as e:
             logger.error(f"Error loading vacancy {vacancy_id}: {e}")
             raise e
 
-    async def get_vacancy_details(self, hh_user_id: str, vacancy_id: str) -> Dict[str, Any]:
+    async def get_vacancy_details(
+        self, hh_user_id: str, vacancy_id: str
+    ) -> Dict[str, Any]:
         """Get full vacancy details with DB caching"""
         db_gen = get_db()
         db = next(db_gen)
-        
+
         try:
             db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
-            
+
             # Если вакансия свежая, возвращаем из БД
-            if db_vacancy and (datetime.utcnow() - db_vacancy.updated_at).total_seconds() < 43200:
+            if (
+                db_vacancy
+                and (datetime.utcnow() - db_vacancy.updated_at).total_seconds() < 43200
+            ):
                 return db_vacancy.full_data
-            
+
             # Иначе загружаем с HH API
             token = await self._get_token(hh_user_id)
             vacancy = await self.hh_client.get_vacancy(token, vacancy_id)
-            
+
             # Extract plain text from HTML description
             if vacancy.get("description"):
-                vacancy["description"] = self.ai_service._extract_text(vacancy.get("description", ""))
-            
+                vacancy["description"] = self.ai_service._extract_text(
+                    vacancy.get("description", "")
+                )
+
             VacancyCRUD.create_or_update(db, vacancy)
             return vacancy
-            
+
         finally:
             db_gen.close()
 
-    async def generate_cover_letter(self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None) -> Dict[str, Any]:
+    async def generate_cover_letter(
+        self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None
+    ) -> Dict[str, Any]:
         """Generate cover letter for vacancy with pseudonymization"""
         # Получаем резюме из API (без RTF)
         resume = await self.get_user_resume(hh_user_id, resume_id)
         if not resume:
             raise HTTPException(404, "Resume not found")
-        
+
         # Получаем вакансию из БД или с API
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
-        
+
         # Передаем user_id для псевдонимизации
         return await self.ai_service.generate_cover_letter(resume, vacancy, user_id)
 
@@ -187,14 +231,14 @@ class HHService:
         cached = await self.redis_service.get_json("dictionaries")
         if cached:
             return cached
-        
+
         data = await self.hh_client.get_dictionaries()
         result = {
             "experience": data.get("experience", []),
             "employment": data.get("employment", []),
-            "schedule": data.get("schedule", [])
+            "schedule": data.get("schedule", []),
         }
-        
+
         await self.redis_service.set_json("dictionaries", result, 604800)
         return result
 
@@ -203,180 +247,23 @@ class HHService:
         cached = await self.redis_service.get_json("areas")
         if cached:
             return cached
-        
+
         data = await self.hh_client.get_areas()
         await self.redis_service.set_json("areas", data, 604800)
         return data
-    
+
     async def get_saved_searches(self, hh_user_id: str) -> Dict[str, Any]:
-        """Get user's saved searches with caching"""
-        # Cache for 1 minute
-        cache_key = f"saved_searches:{hh_user_id}"
-        cached = await self.redis_service.get_json(cache_key)
-        if cached:
-            return cached
+     """Get user's saved searches with caching"""
+     # Cache for 1 minute
+     cache_key = f"saved_searches:{hh_user_id}"
+     cached = await self.redis_service.get_json(cache_key)
+     if cached:
+         return cached
 
-        token = await self._get_token(hh_user_id)
-        saved_searches = await self.hh_client.get_saved_searches(token)
+     token = await self._get_token(hh_user_id)
+     saved_searches = await self.hh_client.get_saved_searches(token)
 
-        # Cache the result
-        await self.redis_service.set_json(cache_key, saved_searches, 60)
+     # Cache the result
+     await self.redis_service.set_json(cache_key, saved_searches, 60)
 
-        return saved_searches
-
-    async def search_vacancies_by_saved_search(self, hh_user_id: str, saved_search_id: str, 
-                                             page: int = 0, per_page: int = 100) -> Dict[str, Any]:
-        """Search vacancies using saved search ID"""
-        # First get saved searches to find the URL
-        saved_searches = await self.get_saved_searches(hh_user_id)
-
-        # Find the saved search by ID
-        saved_search = None
-        for item in saved_searches.get('items', []):
-            if item.get('id') == saved_search_id:
-                saved_search = item
-                break
-            
-        if not saved_search:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Saved search with ID {saved_search_id} not found"
-            )
-
-        # Get the search URL
-        search_url = saved_search.get('url')
-        if not search_url:
-            raise HTTPException(
-                status_code=400,
-                detail="Saved search has no URL"
-            )
-
-        logger.info(f"Using saved search '{saved_search.get('name')}' URL: {search_url}")
-
-        # Use the URL to search
-        token = await self._get_token(hh_user_id)
-        result = await self.hh_client.search_vacancies_by_url(token, search_url, page, per_page)
-
-        # Load full descriptions as in regular search
-        if "items" in result and result["items"]:
-            db_gen = get_db()
-            db = next(db_gen)
-
-            try:
-                vacancy_ids = [v["id"] for v in result["items"]]
-                VacancyCRUD.update_last_searched(db, vacancy_ids)
-
-                # Determine which vacancies need updating
-                stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
-
-                # Load fresh vacancies from DB
-                fresh_vacancies = {}
-                for vacancy_id in vacancy_ids:
-                    if vacancy_id not in stale_ids:
-                        db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
-                        if db_vacancy:
-                            fresh_vacancies[vacancy_id] = db_vacancy.full_data
-
-                # Load stale vacancies from HH API
-                if stale_ids:
-                    batch_size = settings.HH_BATCH_SIZE
-
-                    for i in range(0, len(stale_ids), batch_size):
-                        batch = stale_ids[i:i + batch_size]
-
-                        if i > 0:
-                            await asyncio.sleep(settings.HH_BATCH_DELAY)
-
-                        batch_tasks = []
-                        for vacancy_id in batch:
-                            batch_tasks.append(self._load_and_save_vacancy(token, vacancy_id, db))
-
-                        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-
-                        for vacancy_id, result_item in zip(batch, batch_results):
-                            if isinstance(result_item, Exception):
-                                logger.error(f"Error loading vacancy {vacancy_id}: {result_item}")
-                                # Keep original basic info from search results
-                                basic_info = next((v for v in result["items"] if v["id"] == vacancy_id), None)
-                                if basic_info:
-                                    fresh_vacancies[vacancy_id] = basic_info
-                            else:
-                                fresh_vacancies[vacancy_id] = result_item
-
-                # Build final result
-                final_items = []
-                for vacancy in result["items"]:
-                    if vacancy["id"] in fresh_vacancies:
-                        final_items.append(fresh_vacancies[vacancy["id"]])
-                    else:
-                        # Use original vacancy data from search results
-                        final_items.append(vacancy)
-
-                result["items"] = final_items
-
-            finally:
-                db.close()
-
-        return result
-
-
-    # Добавить в HHService класс
-    async def search_vacancies_by_resume(self, hh_user_id: str, resume_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Search vacancies similar to resume with full descriptions and DB caching"""
-        token = await self._get_token(hh_user_id)
-        result = await self.hh_client.search_vacancies_by_resume(token, resume_id, params)
-
-        if "items" in result and result["items"]:
-            db_gen = get_db()
-            db = next(db_gen)
-
-            try:
-                vacancy_ids = [v["id"] for v in result["items"]]
-                VacancyCRUD.update_last_searched(db, vacancy_ids)
-
-                stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
-
-                fresh_vacancies = {}
-                for vacancy_id in vacancy_ids:
-                    if vacancy_id not in stale_ids:
-                        db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
-                        if db_vacancy:
-                            fresh_vacancies[vacancy_id] = db_vacancy.full_data
-
-                if stale_ids:
-                    batch_size = settings.HH_BATCH_SIZE
-
-                    for i in range(0, len(stale_ids), batch_size):
-                        batch = stale_ids[i:i + batch_size]
-
-                        if i > 0:
-                            await asyncio.sleep(settings.HH_BATCH_DELAY)
-
-                        batch_tasks = []
-                        for vacancy_id in batch:
-                            batch_tasks.append(self._load_and_save_vacancy(token, vacancy_id, db))
-
-                        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-
-                        for vacancy_id, result_item in zip(batch, batch_results):
-                            if isinstance(result_item, Exception):
-                                logger.error(f"Error loading vacancy {vacancy_id}: {result_item}")
-                                basic_info = next((v for v in result["items"] if v["id"] == vacancy_id), None)
-                                if basic_info:
-                                    fresh_vacancies[vacancy_id] = basic_info
-                            else:
-                                fresh_vacancies[vacancy_id] = result_item
-
-                final_items = []
-                for vacancy in result["items"]:
-                    if vacancy["id"] in fresh_vacancies:
-                        final_items.append(fresh_vacancies[vacancy["id"]])
-                    else:
-                        final_items.append(vacancy)
-
-                result["items"] = final_items
-
-            finally:
-                db.close()
-
-        return result
+     return saved_searches

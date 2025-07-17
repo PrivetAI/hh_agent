@@ -149,24 +149,22 @@ class ApiService {
     )
   }
 
-  // Vacancies
+    // Unified vacancy search method
   async searchVacancies(params: any): Promise<VacancySearchResponse> {
     const response = await this.axios.get('/api/vacancies', { params })
     return response.data
   }
 
-  async searchVacanciesByResume(resumeId: string): Promise<VacancySearchResponse> {
-    const response = await this.axios.get(`/api/vacancies/by-resume/${resumeId}`)
-    return response.data
+  // Get saved searches list only - no special vacancy search method needed
+  async getSavedSearches(): Promise<SavedSearchesResponse> {
+    return this.deduplicatedRequest(
+      'saved-searches',
+      async () => {
+        const response = await this.axios.get('/api/saved-searches')
+        return response.data
+      }
+    )
   }
-
-  async analyzeVacancy(id: string, resume_id?: string): Promise<VacancyAnalysisResponse> {
-    const response = await this.axios.post(`/api/vacancy/${id}/analyze`, null, {
-      params: resume_id ? { resume_id } : {}
-    })
-    return response.data
-  }
-
   async generateLetter(id: string, resume_id?: string): Promise<GenerateLetterResponse> {
     const response = await this.axios.post(`/api/vacancy/${id}/generate-letter`, null, {
       params: resume_id ? { resume_id } : {}
@@ -200,17 +198,6 @@ class ApiService {
       'user-info',
       async () => {
         const response = await this.axios.get('/api/user-info')
-        return response.data
-      }
-    )
-  }
-
-  // Saved Searches
-  async getSavedSearches(): Promise<SavedSearchesResponse> {
-    return this.deduplicatedRequest(
-      'saved-searches',
-      async () => {
-        const response = await this.axios.get('/api/saved-searches')
         return response.data
       }
     )

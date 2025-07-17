@@ -21,16 +21,19 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
 
   const apiService = ApiService.getInstance()
 
+  // Updated searchVacancies method in useVacancies hook
+
   const searchVacancies = useCallback(async (params: any) => {
     setLoading('search')
     try {
+      // Use unified search method - backend will handle resume-based search if resume_id is provided
       const data = await apiService.searchVacancies(params)
       const vacanciesWithSelection = (data.items || []).map((v: Vacancy) => ({
         ...v,
         selected: true,
         applied: false,
         aiLetter: undefined,
-        aiMetadata: undefined  // Инициализируем метаданные
+        aiMetadata: undefined
       }))
       setVacancies(vacanciesWithSelection)
     } catch (err: any) {
@@ -59,7 +62,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     try {
       const data = await apiService.generateLetter(id, selectedResumeId)
       // Сохраняем и контент, и метаданные AI
-      updateVacancy(id, { 
+      updateVacancy(id, {
         aiLetter: data.content,
         aiMetadata: {
           prompt_filename: data.prompt_filename,
@@ -75,9 +78,9 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
 
   const generateAllLetters = useCallback(async () => {
     if (loading === 'generate' || loading === 'generate-and-send') return
-    
+
     const toGenerate = vacancies.filter(v => !v.aiLetter && v.selected)
-    
+
     if (toGenerate.length === 0) return
 
     try {
@@ -109,8 +112,8 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
         try {
           const data = await apiService.generateLetter(vacancy.id, selectedResumeId)
           setVacancies(prev => prev.map(v =>
-            v.id === vacancy.id ? { 
-              ...v, 
+            v.id === vacancy.id ? {
+              ...v,
               aiLetter: data.content,
               aiMetadata: {
                 prompt_filename: data.prompt_filename,
@@ -126,7 +129,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     } finally {
       setGeneratingId('')
       setLoading('')
-      
+
       if (hasGeneratedAny && onCreditsChange) {
         console.log('Calling onCreditsChange after generation')
         onCreditsChange()
@@ -150,8 +153,8 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
       try {
         // Передаем AI метаданные при отправке
         await apiService.applyToVacancy(
-          vacancy.id, 
-          selectedResumeId, 
+          vacancy.id,
+          selectedResumeId,
           vacancy.aiLetter,
           vacancy.aiMetadata  // Новый параметр с метаданными
         )
@@ -180,12 +183,12 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     setLoading('')
   }, [vacancies, apiService, selectedResumeId])
 
-const generateAndSendSelected = useCallback(async () => {
+  const generateAndSendSelected = useCallback(async () => {
     if (loading !== '') return
-    
+
     const toGenerate = vacancies.filter(v => !v.aiLetter && v.selected)
     const toSendExisting = vacancies.filter(v => v.aiLetter && v.selected)
-    
+
     if (toGenerate.length === 0 && toSendExisting.length === 0) {
       alert('Нет вакансий для обработки')
       return
@@ -219,7 +222,7 @@ const generateAndSendSelected = useCallback(async () => {
         }
 
         const processedIds = new Set()
-        
+
         for (const vacancy of toGenerate) {
           if (processedIds.has(vacancy.id)) continue
           processedIds.add(vacancy.id)
@@ -229,8 +232,8 @@ const generateAndSendSelected = useCallback(async () => {
             const data = await apiService.generateLetter(vacancy.id, selectedResumeId)
             // Обновляем локальный массив с метаданными
             updatedVacancies = updatedVacancies.map(v =>
-              v.id === vacancy.id ? { 
-                ...v, 
+              v.id === vacancy.id ? {
+                ...v,
                 aiLetter: data.content,
                 aiMetadata: {
                   prompt_filename: data.prompt_filename,
@@ -245,13 +248,13 @@ const generateAndSendSelected = useCallback(async () => {
             allErrors.push(`Ошибка генерации для ${vacancy.name || vacancy.id}`)
           }
         }
-        
+
         setGeneratingId('')
       }
 
       // Этап 2: Отправка всех готовых откликов
       const toSendFinal = updatedVacancies.filter(v => v.selected && v.aiLetter)
-      
+
       if (toSendFinal.length > 0) {
         let successful = 0
         let failed = 0
@@ -261,8 +264,8 @@ const generateAndSendSelected = useCallback(async () => {
           try {
             // Передаем метаданные при отправке
             await apiService.applyToVacancy(
-              vacancy.id, 
-              selectedResumeId, 
+              vacancy.id,
+              selectedResumeId,
               vacancy.aiLetter,
               vacancy.aiMetadata
             )
@@ -285,19 +288,19 @@ const generateAndSendSelected = useCallback(async () => {
 
       // Финальное сообщение
       let finalMessage = ''
-      
+
       if (hasGeneratedAny) {
         finalMessage += `Создано откликов: ${toGenerate.length}\n`
       }
-      
+
       if (totalSuccessfulSent > 0) {
         finalMessage += `Успешно отправлено: ${totalSuccessfulSent} откликов\n`
       }
-      
+
       if (totalFailedSent > 0) {
         finalMessage += `Не удалось отправить: ${totalFailedSent}\n`
       }
-      
+
       if (allErrors.length > 0 && allErrors.length <= 5) {
         finalMessage += '\nОшибки:\n' + allErrors.slice(0, 5).join('\n')
       }
@@ -310,7 +313,7 @@ const generateAndSendSelected = useCallback(async () => {
     } finally {
       setLoading('')
       setGeneratingId('')
-      
+
       // Обновляем кредиты если было сгенерировано что-то ИЛИ отправлено
       if ((hasGeneratedAny || hasSentAny) && onCreditsChange) {
         console.log('Calling onCreditsChange after generate-and-send')
@@ -318,7 +321,7 @@ const generateAndSendSelected = useCallback(async () => {
       }
     }
   }, [vacancies, loading, apiService, selectedResumeId, onCreditsChange])
-  
+
   return {
     vacancies,
     loading,
