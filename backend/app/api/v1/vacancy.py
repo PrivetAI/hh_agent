@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, Query, HTTPException, HTTPException, sta
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
-from typing import Dict, Any
 
 from ...api.deps import get_current_user, check_user_credits, get_db
 from ...crud.user import UserCRUD
@@ -236,21 +235,44 @@ async def get_history(
     history = LetterGenerationCRUD.get_user_history(db, user.id)
     return history
 
-@router.get("/saved-searches")
-async def get_saved_searches(
-    user: User = Depends(get_current_user)
-) -> Dict[str, Any]:
-    """Get user's saved searches from HH"""
-    logger.info(f"Getting saved searches for user {user.hh_user_id}")
+# Добавить в роутер после существующих эндпоинтов
+
+@router.get("/vacancies/by-resume/{resume_id}")
+async def search_vacancies_by_resume(
+    resume_id: str,
+    text: Optional[str] = Query(None),
+    area: Optional[str] = Query(None),
+    salary: Optional[int] = Query(None),
+    only_with_salary: Optional[bool] = Query(False),
+    experience: Optional[str] = Query(None),
+    employment: Optional[str] = Query(None),
+    schedule: Optional[str] = Query(None),
+    remote: Optional[bool] = Query(None),
+    excluded_text: Optional[str] = Query(None),
+    page: int = Query(0),
+    per_page: int = Query(20, ge=1, le=100),
+    user: User = Depends(get_current_user),
+):
+    """Search vacancies similar to resume"""
+    params = {"page": page, "per_page": per_page}
     
-    try:
-        saved_searches = await hh_service.get_saved_searches(user.hh_user_id)
-        return saved_searches
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting saved searches: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to get saved searches"
-        )
+    if text:
+        params["text"] = text
+    if area:
+        params["area"] = area
+    if salary:
+        params["salary"] = salary
+    if only_with_salary:
+        params["only_with_salary"] = "true"
+    if experience:
+        params["experience"] = experience
+    if employment:
+        params["employment"] = employment
+    if schedule:
+        params["schedule"] = schedule
+    if remote is True:
+        params["remote"] = True
+    if excluded_text:
+        params["excluded_text"] = excluded_text
+
+    return await hh_service.search_vacancies_by_resume(user.hh_user_id, resume_id, params)

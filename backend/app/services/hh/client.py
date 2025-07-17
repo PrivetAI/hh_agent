@@ -205,12 +205,16 @@ class HHClient:
             response = await client.get(
                 f"{self.base_url}/saved_searches/vacancies",
                 headers={"Authorization": f"Bearer {token}"},
-                params={"per_page": 100}  # Get up to 100 saved searches
+                params={"per_page": 10}  # Максимум 100 результатов
             )
 
             if response.status_code != 200:
                 logger.error(f"Failed to get saved searches: {response.status_code}")
-                error_data = response.json() if response.headers.get('content-type') == 'application/json' else {}
+                try:
+                    error_data = response.json()
+                except:
+                    error_data = {"description": "Failed to parse error response"}
+
                 raise HTTPException(
                     status_code=response.status_code,
                     detail=error_data.get('description', 'Failed to get saved searches')
@@ -248,3 +252,37 @@ class HHClient:
             result = response.json()
             logger.info(f"Found {result.get('found', 0)} vacancies from saved search")
             return result
+        
+    # Добавить в HHClient класс
+
+    async def search_vacancies_by_resume(self, token: str, resume_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Search vacancies similar to resume"""
+        url = f"{self.base_url}/resumes/{resume_id}/similar_vacancies"
+        
+        query_params = {}
+        
+        if params.get('page') is not None:
+            query_params['page'] = params['page']
+        if params.get('per_page'):
+            query_params['per_page'] = params['per_page']
+        
+        if params.get('remote') is True:
+            query_params['work_format'] = 'REMOTE'
+        if params.get('excluded_text'):
+            query_params['excluded_text'] = params['excluded_text']
+        
+        for key in ['text', 'area', 'salary', 'only_with_salary', 'experience', 
+                    'employment', 'schedule', 'currency', 'professional_role', 
+                    'industry', 'employer_id', 'excluded_employer_id', 'label',
+                    'period', 'date_from', 'date_to', 'order_by']:
+            if params.get(key):
+                query_params[key] = params[key]
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                url, 
+                params=query_params,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            response.raise_for_status()
+            return response.json()

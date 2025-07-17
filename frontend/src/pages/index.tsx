@@ -109,6 +109,7 @@ function AuthenticatedHome() {
           />
 
           <VacancyFilters
+          selectedResumeId={selectedResumeId}
             onSearch={searchVacancies}
             loading={loading === 'search'}
           />

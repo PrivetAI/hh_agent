@@ -11,7 +11,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core.database import create_tables
 from .core.config import settings
-from .api.v1 import auth, vacancy, payment, user
 # Create tables
 create_tables()
 
@@ -28,8 +27,7 @@ logger.info(f"ROBOKASSA_TEST_MODE from settings: {settings.ROBOKASSA_TEST_MODE}"
 logger.info(f"DATABASE_URL: {'SET' if settings.DATABASE_URL else 'NOT SET'}")
 logger.info("========================")
 
-from .core.database import create_tables
-from .api.v1 import auth, vacancy, payment, user
+from .api.v1 import auth, vacancy, payment, user, saved_searches
 # Статический список origins для разработки и продакшена
 origins = [
     "http://localhost:8000",
@@ -67,6 +65,7 @@ app.include_router(auth.router)
 app.include_router(vacancy.router)
 app.include_router(payment.router)
 app.include_router(user.router)
+app.include_router(saved_searches.router)
 
 @app.get("/")
 async def root():
