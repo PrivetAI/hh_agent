@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Resume } from '../types'
-import ApiService, { UserInfo } from '../services/apiService'
+import ApiService from '../services/apiService'
 
 interface ResumeSelectorProps {
   selectedResumeId: string | null
