@@ -2,9 +2,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from ..models.db import Application
+from ..models.db import Application, Mapping, MappingSession
 from ..models.schemas import ApplicationCreate
 
 class ApplicationCRUD:
@@ -76,3 +76,70 @@ class ApplicationCRUD:
             db.commit()
             return True
         return False
+
+    @staticmethod
+    def save_pseudonymization_mappings(
+        db: Session, 
+        session_id: UUID, 
+        user_id: UUID, 
+        mappings: List[dict]
+    ) -> None:
+        """Save pseudonymization mappings using ORM"""
+        try:
+            # Create mapping session
+            mapping_session = MappingSession(
+                id=session_id,
+                user_id=user_id
+            )
+            db.add(mapping_session)
+            
+            # Add mappings
+            for mapping in mappings:
+                mapping_obj = Mapping(
+                    session_id=session_id,
+                    original_value=mapping['original'],
+                    pseudonym=mapping['pseudonym'],
+                    data_type=mapping['type']
+                )
+                db.add(mapping_obj)
+            
+            db.commit()
+            
+        except Exception as e:
+            db.rollback()
+            raise e
+
+    @staticmethod
+    def get_pseudonymization_mappings(
+        db: Session, 
+        session_id: UUID
+    ) -> List[dict]:
+        """Get pseudonymization mappings for a session"""
+        mappings = db.query(Mapping).filter(
+            Mapping.session_id == session_id
+        ).all()
+        
+        return [
+            {
+                'original': mapping.original_value,
+                'pseudonym': mapping.pseudonym,
+                'type': mapping.data_type
+            }
+            for mapping in mappings
+        ]
+
+    @staticmethod
+    def cleanup_expired_mappings(db: Session) -> int:
+        """Clean up expired pseudonymization mappings"""
+        try:
+            # Delete expired mapping sessions (cascades to mappings)
+            deleted_count = db.query(MappingSession).filter(
+                MappingSession.expires_at < datetime.utcnow()
+            ).delete()
+            
+            db.commit()
+            return deleted_count
+            
+        except Exception as e:
+            db.rollback()
+            raise e

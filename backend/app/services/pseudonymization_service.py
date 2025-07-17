@@ -1,161 +1,145 @@
-import logging
-from typing import Dict, Tuple, Any, List
-from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import and_
+from typing import List, Optional
+from datetime import datetime
+from uuid import UUID, uuid4
 
-logger = logging.getLogger(__name__)
+from ..models.db import Application, Mapping, MappingSession
+from ..models.schemas import ApplicationCreate
 
-class PseudonymizationService:
-    """Сервис для псевдонимизации компаний и учебных заведений"""
-    
-    def __init__(self):
-        # Кэш для хранения маппингов в памяти
-        self._mappings_cache = {}
-    
-    def pseudonymize_resume(self, db: Session, user_id: str, 
-                           resume_data: Dict[str, Any]) -> Tuple[Dict[str, Any], UUID]:
-        """Псевдонимизация резюме - только компании и учебные заведения"""
-        session_id = uuid4()
-        pseudo_resume = resume_data.copy()
-        
-        company_counter = 0
-        education_counter = 0
-        mappings = []
-        
-        # Обработка опыта работы
-        if 'experience' in pseudo_resume and pseudo_resume['experience']:
-            for exp in pseudo_resume['experience']:
-                if exp.get('company'):
-                    company_counter += 1
-                    pseudonym = f"[КОМПАНИЯ_{company_counter}]"
-                    
-                    mappings.append({
-                        'original': exp['company'],
-                        'pseudonym': pseudonym,
-                        'type': 'company'
-                    })
-                    
-                    exp['company'] = pseudonym
-        
-        # Обработка образования
-        if 'education' in pseudo_resume and pseudo_resume['education']:
-            primary_education = pseudo_resume['education'].get('primary', [])
-            for edu in primary_education:
-                if edu.get('name'):
-                    education_counter += 1
-                    pseudonym = f"[УЧЕБНОЕ_ЗАВЕДЕНИЕ_{education_counter}]"
-                    
-                    mappings.append({
-                        'original': edu['name'],
-                        'pseudonym': pseudonym,
-                        'type': 'education'
-                    })
-                    
-                    edu['name'] = pseudonym
-        
-        # Сохраняем маппинги в кэш
-        self._mappings_cache[str(session_id)] = mappings
-        
-        # Сохраняем в БД только если есть маппинги
-        if mappings:
-            try:
-                self._save_mappings_to_db(db, session_id, user_id, mappings)
-            except Exception as e:
-                logger.error(f"Failed to save mappings to DB: {e}")
-                # Продолжаем работу, используя кэш
-        
-        logger.info(f"Pseudonymized {company_counter} companies and {education_counter} education institutions")
-        
-        return pseudo_resume, session_id
-    
-    def _save_mappings_to_db(self, db: Session, session_id: UUID, 
-                            user_id: str, mappings: List[Dict[str, str]]):
-        """Сохранение маппингов в БД"""
-        # Создаем сессию
-        db.execute(
-            text("""
-                INSERT INTO pseudonymization.mapping_sessions (id, user_id)
-                VALUES (:session_id, :user_id)
-            """),
-            {"session_id": str(session_id), "user_id": user_id}
+class ApplicationCRUD:
+    @staticmethod
+    def create(
+        db: Session,
+        user_id: UUID,
+        vacancy_id: str,
+        resume_id: Optional[str] = None,
+        message: str = "",
+        prompt_filename: Optional[str] = None,
+        ai_model: Optional[str] = None
+    ) -> Application:
+        """Create new application"""
+        application = Application(
+            user_id=user_id,
+            vacancy_id=vacancy_id,
+            resume_id=resume_id,
+            message=message,
+            prompt_filename=prompt_filename,
+            ai_model=ai_model,
+            created_at=datetime.utcnow()
         )
-        
-        # Сохраняем маппинги пачкой для оптимизации
-        for mapping in mappings:
-            db.execute(
-                text("""
-                    INSERT INTO pseudonymization.mappings 
-                    (session_id, original_value, pseudonym, data_type)
-                    VALUES (:session_id, :original, :pseudonym, :data_type)
-                """),
-                {
-                    "session_id": str(session_id),
-                    "original": mapping['original'],
-                    "pseudonym": mapping['pseudonym'],
-                    "data_type": mapping['type']
-                }
-            )
-        
+        db.add(application)
         db.commit()
-        logger.info(f"Saved {len(mappings)} mappings to DB")
-    
-    def restore_text(self, db: Session, session_id: UUID, pseudonymized_text: str) -> str:
-        """Восстановление оригинального текста из псевдонимов"""
-        session_id_str = str(session_id)
-        
-        # Сначала пробуем кэш
-        if session_id_str in self._mappings_cache:
-            mappings = self._mappings_cache[session_id_str]
-            restored = pseudonymized_text
-            
-            for mapping in mappings:
-                if mapping['pseudonym'] in restored:
-                    restored = restored.replace(
-                        mapping['pseudonym'], 
-                        mapping['original']
-                    )
-            
-            logger.info(f"Restored text from cache for session {session_id_str}")
-            return restored
-        
-        # Если нет в кэше, загружаем из БД
-        try:
-            result = db.execute(
-                text("""
-                    SELECT pseudonym, original_value 
-                    FROM pseudonymization.mappings
-                    WHERE session_id = :session_id
-                """),
-                {"session_id": session_id_str}
+        db.refresh(application)
+        return application
+
+    @staticmethod
+    def user_applied_to_vacancy(db: Session, user_id: UUID, vacancy_id: str) -> bool:
+        """Check if user already applied to vacancy"""
+        return db.query(Application).filter(
+            and_(
+                Application.user_id == user_id,
+                Application.vacancy_id == vacancy_id
             )
+        ).first() is not None
+
+    @staticmethod
+    def get_user_applied_vacancies(db: Session, user_id: str, vacancy_ids: List[str]) -> List[str]:
+        """Get list of vacancy IDs that user has already applied to"""
+        applied = db.query(Application.vacancy_id).filter(
+            and_(
+                Application.user_id == user_id,
+                Application.vacancy_id.in_(vacancy_ids)
+            )
+        ).all()
+        
+        return [app.vacancy_id for app in applied]
+
+    @staticmethod
+    def get_user_applications(db: Session, user_id: UUID) -> List[Application]:
+        """Get all user applications"""
+        return db.query(Application).filter(
+            Application.user_id == user_id
+        ).order_by(Application.created_at.desc()).all()
+
+    @staticmethod
+    def get_by_id(db: Session, application_id: UUID) -> Optional[Application]:
+        """Get application by ID"""
+        return db.query(Application).filter(Application.id == application_id).first()
+
+    @staticmethod
+    def delete(db: Session, application_id: UUID) -> bool:
+        """Delete application by ID"""
+        application = ApplicationCRUD.get_by_id(db, application_id)
+        if application:
+            db.delete(application)
+            db.commit()
+            return True
+        return False
+
+    @staticmethod
+    def save_pseudonymization_mappings(
+        db: Session, 
+        session_id: UUID, 
+        user_id: UUID, 
+        mappings: List[dict]
+    ) -> None:
+        """Save pseudonymization mappings using ORM"""
+        try:
+            # Create mapping session
+            mapping_session = MappingSession(
+                id=session_id,
+                user_id=user_id
+            )
+            db.add(mapping_session)
             
-            restored = pseudonymized_text
-            mappings_count = 0
+            # Add mappings
+            for mapping in mappings:
+                mapping_obj = Mapping(
+                    session_id=session_id,
+                    original_value=mapping['original'],
+                    pseudonym=mapping['pseudonym'],
+                    data_type=mapping['type']
+                )
+                db.add(mapping_obj)
             
-            for row in result:
-                if row.pseudonym in restored:
-                    restored = restored.replace(
-                        row.pseudonym, 
-                        row.original_value
-                    )
-                    mappings_count += 1
-            
-            logger.info(f"Restored {mappings_count} mappings from DB for session {session_id_str}")
-            return restored
+            db.commit()
             
         except Exception as e:
-            logger.error(f"Failed to restore text from DB: {e}", exc_info=True)
-            # Возвращаем оригинальный текст если не можем восстановить
-            return pseudonymized_text
-    
-    def clear_cache(self, session_id: UUID = None):
-        """Очистка кэша маппингов"""
-        if session_id:
-            session_id_str = str(session_id)
-            if session_id_str in self._mappings_cache:
-                del self._mappings_cache[session_id_str]
-                logger.info(f"Cleared cache for session {session_id_str}")
-        else:
-            self._mappings_cache.clear()
-            logger.info("Cleared all mappings cache")
+            db.rollback()
+            raise e
+
+    @staticmethod
+    def get_pseudonymization_mappings(
+        db: Session, 
+        session_id: UUID
+    ) -> List[dict]:
+        """Get pseudonymization mappings for a session"""
+        mappings = db.query(Mapping).filter(
+            Mapping.session_id == session_id
+        ).all()
+        
+        return [
+            {
+                'original': mapping.original_value,
+                'pseudonym': mapping.pseudonym,
+                'type': mapping.data_type
+            }
+            for mapping in mappings
+        ]
+
+    @staticmethod
+    def cleanup_expired_mappings(db: Session) -> int:
+        """Clean up expired pseudonymization mappings"""
+        try:
+            # Delete expired mapping sessions (cascades to mappings)
+            deleted_count = db.query(MappingSession).filter(
+                MappingSession.expires_at < datetime.utcnow()
+            ).delete()
+            
+            db.commit()
+            return deleted_count
+            
+        except Exception as e:
+            db.rollback()
+            raise e
