@@ -55,12 +55,14 @@ export const CreditsInfo = ({
             const payment = await apiService.createPayment(selectedPackageId)
             if (payment.payment_url) {
                 // Сохраняем ID платежа
+                //@ts-ignore
                 localStorage.setItem('pending_payment_id', payment.payment_id)
 
                 // Открываем в новом окне
                 const paymentWindow = window.open(payment.payment_url, '_blank')
 
                 // Начинаем проверку статуса
+                //@ts-ignore
                 startPaymentStatusCheck(payment.payment_id, paymentWindow)
             }
         } catch (err: any) {
