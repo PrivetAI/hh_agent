@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import ApiService, { UserInfo } from '../services/apiService'
+import ApiService from '../services/apiService'
+import { UserInfo } from '../types'
 
 export const useCredits = (isAuthenticated = true) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
