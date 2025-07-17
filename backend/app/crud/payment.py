@@ -95,8 +95,8 @@ class LetterGenerationCRUD:
         vacancy_title: str,
         resume_id: str, 
         letter_content: str,
-        prompt_filename: str,
-        ai_model: str
+        prompt_filename: Optional[str] = None,
+        ai_model: Optional[str] = None
     ) -> LetterGeneration:
         """Save generated letter to history"""
         generation = LetterGeneration(

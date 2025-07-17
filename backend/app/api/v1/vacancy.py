@@ -41,13 +41,10 @@ async def get_vacancies(
     excluded_text: Optional[str] = Query(None),
     page: int = Query(0),
     per_page: int = Query(20, ge=20, le=100),
-    # New parameters for time-based filtering
     period: Optional[int] = Query(None),
     date_from: Optional[str] = Query(None),
-    # Parameters for resume-based search
     resume_id: Optional[str] = Query(None),
     for_resume: Optional[bool] = Query(None),
-    # Additional HH.ru parameters
     saved_search_id: Optional[str] = Query(None),
     no_magic: Optional[bool] = Query(None),
     user: User = Depends(get_current_user),
@@ -55,7 +52,6 @@ async def get_vacancies(
     """Get vacancies list with full descriptions - unified endpoint"""
     params = {"page": page, "per_page": per_page}
 
-    # Add filters only if they have values
     if text:
         params["text"] = text
     if area:
@@ -74,34 +70,26 @@ async def get_vacancies(
         params["remote"] = True
     if excluded_text:
         params["excluded_text"] = excluded_text
-    
-    # Time-based filtering parameters
     if period is not None:
         params["period"] = period
     if date_from:
         params["date_from"] = date_from
-    
-    # Additional HH.ru parameters
     if saved_search_id:
         params["saved_search_id"] = saved_search_id
         params["per_page"] = 100
     if no_magic is not None:
         params["no_magic"] = "true" if no_magic else "false"
 
-    # Use appropriate search method based on for_resume flag
     if for_resume and resume_id:
-        # Use resume-based search
         result = await hh_service.search_vacancies_by_resume(
             user.hh_user_id, resume_id, params
         )
     else:
-        # Use regular search
         result = await hh_service.search_vacancies_with_descriptions(
-            user.hh_user_id, params
+            user.hh_user_id, params, str(user.id)
         )
     
     return result
-
 @router.get("/vacancy/{vacancy_id}")
 async def get_vacancy_details(vacancy_id: str, user: User = Depends(get_current_user)):
     """Get full vacancy details"""

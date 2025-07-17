@@ -40,7 +40,6 @@ export default function VacancyFilters({ onSearch, loading, selectedResumeId }: 
         <ManualFilters 
           onSearch={onSearch} 
           loading={loading} 
-          selectedResumeId={selectedResumeId}
         />
       )}
 

@@ -10,6 +10,7 @@ from ..ai_service import AIService
 from ...core.config import settings
 from ...core.database import get_db
 from ...crud.vacancy import VacancyCRUD
+from ...crud.application import ApplicationCRUD
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,6 @@ class HHService:
 
     async def get_user_resumes(self, hh_user_id: str) -> List[Dict[str, Any]]:
         """Get all user's resumes from API (without RTF)"""
-        # Кеширование на 1 минуту
         cached = await self.redis_service.get_json(f"resumes:api:{hh_user_id}")
         if cached:
             return cached
@@ -37,8 +37,6 @@ class HHService:
         token = await self._get_token(hh_user_id)
         resumes = await self.hh_client.get_resumes(token)
 
-        # Возвращаем полные данные из API, они уже содержат все необходимые поля
-        # Cache for 1 minute
         await self.redis_service.set_json(f"resumes:api:{hh_user_id}", resumes, 60)
         return resumes
 
@@ -60,28 +58,22 @@ class HHService:
         """Search vacancies without loading full descriptions"""
         token = await self._get_token(hh_user_id)
         result = await self.hh_client.search_vacancies(token, params)
-
         return result
 
-    # Updated search_vacancies_with_descriptions method in HHService class
-
     async def search_vacancies_with_descriptions(
-        self, hh_user_id: str, params: Dict[str, Any]
+        self, hh_user_id: str, params: Dict[str, Any], user_id: str
     ) -> Dict[str, Any]:
-        """Search vacancies and load full descriptions with DB caching"""
+        """Search vacancies and load full descriptions with DB caching and applied check"""
         token = await self._get_token(hh_user_id)
 
-        # Check if this is a resume-based search
         resume_id = params.pop("resume_id", None)
         for_resume = params.pop("for_resume", False)
 
         if for_resume and resume_id:
-            # Use resume-based search
             result = await self.hh_client.search_vacancies_by_resume(
                 token, resume_id, params
             )
         else:
-            # Use regular search
             result = await self.hh_client.search_vacancies(token, params)
 
         if "items" in result and result["items"]:
@@ -92,10 +84,12 @@ class HHService:
                 vacancy_ids = [v["id"] for v in result["items"]]
                 VacancyCRUD.update_last_searched(db, vacancy_ids)
 
-                # Определяем какие вакансии нужно обновить
+                # Получаем список вакансий, на которые пользователь уже откликнулся
+                applied_vacancies = ApplicationCRUD.get_user_applied_vacancies(db, user_id, vacancy_ids)
+                applied_set = set(applied_vacancies)
+
                 stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
 
-                # Загружаем из БД актуальные вакансии
                 fresh_vacancies = {}
                 for vacancy_id in vacancy_ids:
                     if vacancy_id not in stale_ids:
@@ -103,7 +97,6 @@ class HHService:
                         if db_vacancy:
                             fresh_vacancies[vacancy_id] = db_vacancy.full_data
 
-                # Загружаем устаревшие вакансии с HH API
                 if stale_ids:
                     batch_size = settings.HH_BATCH_SIZE
 
@@ -128,7 +121,6 @@ class HHService:
                                 logger.error(
                                     f"Error loading vacancy {vacancy_id}: {result_item}"
                                 )
-                                # Keep original basic info from search results
                                 basic_info = next(
                                     (
                                         v
@@ -142,14 +134,14 @@ class HHService:
                             else:
                                 fresh_vacancies[vacancy_id] = result_item
 
-                # Формируем финальный результат
                 final_items = []
                 for vacancy in result["items"]:
-                    if vacancy["id"] in fresh_vacancies:
-                        final_items.append(fresh_vacancies[vacancy["id"]])
-                    else:
-                        # Use original vacancy data from search results
-                        final_items.append(vacancy)
+                    vacancy_data = fresh_vacancies.get(vacancy["id"], vacancy)
+                    
+                    # Добавляем флаг applied
+                    vacancy_data["applied"] = vacancy["id"] in applied_set
+                    
+                    final_items.append(vacancy_data)
 
                 result["items"] = final_items
 
@@ -165,7 +157,6 @@ class HHService:
         try:
             full_vacancy = await self.hh_client.get_vacancy(token, vacancy_id)
 
-            # Extract description as plain text
             if full_vacancy.get("description"):
                 full_vacancy["description"] = self.ai_service._extract_text(
                     full_vacancy.get("description", "")
@@ -188,18 +179,15 @@ class HHService:
         try:
             db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
 
-            # Если вакансия свежая, возвращаем из БД
             if (
                 db_vacancy
                 and (datetime.utcnow() - db_vacancy.updated_at).total_seconds() < 43200
             ):
                 return db_vacancy.full_data
 
-            # Иначе загружаем с HH API
             token = await self._get_token(hh_user_id)
             vacancy = await self.hh_client.get_vacancy(token, vacancy_id)
 
-            # Extract plain text from HTML description
             if vacancy.get("description"):
                 vacancy["description"] = self.ai_service._extract_text(
                     vacancy.get("description", "")
@@ -215,15 +203,11 @@ class HHService:
         self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None
     ) -> Dict[str, Any]:
         """Generate cover letter for vacancy with pseudonymization"""
-        # Получаем резюме из API (без RTF)
         resume = await self.get_user_resume(hh_user_id, resume_id)
         if not resume:
             raise HTTPException(404, "Resume not found")
 
-        # Получаем вакансию из БД или с API
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
-
-        # Передаем user_id для псевдонимизации
         return await self.ai_service.generate_cover_letter(resume, vacancy, user_id)
 
     async def get_dictionaries(self) -> Dict[str, Any]:
@@ -253,17 +237,14 @@ class HHService:
         return data
 
     async def get_saved_searches(self, hh_user_id: str) -> Dict[str, Any]:
-     """Get user's saved searches with caching"""
-     # Cache for 1 minute
-     cache_key = f"saved_searches:{hh_user_id}"
-     cached = await self.redis_service.get_json(cache_key)
-     if cached:
-         return cached
+        """Get user's saved searches with caching"""
+        cache_key = f"saved_searches:{hh_user_id}"
+        cached = await self.redis_service.get_json(cache_key)
+        if cached:
+            return cached
 
-     token = await self._get_token(hh_user_id)
-     saved_searches = await self.hh_client.get_saved_searches(token)
+        token = await self._get_token(hh_user_id)
+        saved_searches = await self.hh_client.get_saved_searches(token)
 
-     # Cache the result
-     await self.redis_service.set_json(cache_key, saved_searches, 60)
-
-     return saved_searches
+        await self.redis_service.set_json(cache_key, saved_searches, 60)
+        return saved_searches

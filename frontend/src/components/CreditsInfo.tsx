@@ -219,7 +219,7 @@ export const CreditsInfo = ({
                         </LoadingButton>
 
                         <div className="text-xs text-[#999999] text-center mt-3">
-                          <a href="/offerta">Публичная офферта</a>
+                            <a href="/offerta">Публичная офферта</a> • <a href="https://t.me/reetry" target="_blank" rel="noopener noreferrer">Поддержка(Telegram)</a>
                         </div>
                     </div>
                 )}
@@ -276,9 +276,7 @@ export const CreditsInfo = ({
                 </LoadingButton>
 
                 <div className="mt-4 text-sm text-[#999999] text-center">
-                    <a href="/offerta">
-                        Публичная офферта
-                    </a>
+                    <a href="/offerta">Публичная офферта</a> • <a href="https://t.me/reetry" target="_blank" rel="noopener noreferrer">Поддержка(Telegram)</a>
                 </div>
             </div>
         </div>

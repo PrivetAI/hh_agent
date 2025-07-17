@@ -21,7 +21,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
 
   const apiService = ApiService.getInstance()
 
-  // Updated searchVacancies method in useVacancies hook
 
   const searchVacancies = useCallback(async (params: any) => {
     setLoading('search')

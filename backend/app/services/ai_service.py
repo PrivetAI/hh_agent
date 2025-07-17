@@ -31,7 +31,7 @@ class AIService:
         self.pseudonymizer = PseudonymizationService()
         
         # Доступные модели и промпты
-        self.models = ["gpt-4o-mini", "gpt-4.1-mini"]
+        self.models = ["gpt-4.1-mini"]
         self.prompts = ["first.md", "second.md", "third.md"]
         
         # Путь к папке с промптами
@@ -105,7 +105,7 @@ class AIService:
         
         # О себе (skills)
         if resume.get('skills'):
-            parts.append(f"О себе: {resume['skills']}")
+            parts.append(f"О себе(дополнительная информация): {resume['skills']}")
         
         # Общий опыт
         if resume.get('total_experience', {}).get('months'):
@@ -114,7 +114,7 @@ class AIService:
         
         # Опыт работы
         if resume.get('experience'):
-            parts.append("\nОпыт работы:")
+            parts.append("\nОпыт работы в компаниях:")
             for exp in resume['experience']:
                 exp_parts = []
                 

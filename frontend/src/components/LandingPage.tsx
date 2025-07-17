@@ -11,12 +11,12 @@ interface CTASectionProps {
 }
 
 function CTASection({ onLogin, loading = false, showFreeTrialBadge = true }: CTASectionProps) {
- const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   const handleClick = async () => {
     if (!privacyAccepted || isLoading) return
-    
+
     setIsLoading(true)
     try {
       await onLogin()
@@ -46,20 +46,20 @@ function CTASection({ onLogin, loading = false, showFreeTrialBadge = true }: CTA
           />
           <span className="select-none leading-relaxed">
             Я принимаю условия{' '}
-            <a 
-              href="/offerta" 
-              className="text-[#d6001c] hover:text-[#a5001a] font-medium underline-offset-2 hover:underline transition-colors" 
-              target="_blank" 
+            <a
+              href="/offerta"
+              className="text-[#d6001c] hover:text-[#a5001a] font-medium underline-offset-2 hover:underline transition-colors"
+              target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
             >
               пользовательского соглашения
             </a>
             {' '}и{' '}
-            <a 
-              href="/privacy-policy" 
-              className="text-[#d6001c] hover:text-[#a5001a] font-medium underline-offset-2 hover:underline transition-colors" 
-              target="_blank" 
+            <a
+              href="/privacy-policy"
+              className="text-[#d6001c] hover:text-[#a5001a] font-medium underline-offset-2 hover:underline transition-colors"
+              target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
             >
@@ -68,7 +68,7 @@ function CTASection({ onLogin, loading = false, showFreeTrialBadge = true }: CTA
           </span>
         </label>
 
-        <button 
+        <button
           onClick={handleClick}
           disabled={actualLoading || !privacyAccepted}
           className={`
@@ -87,9 +87,9 @@ function CTASection({ onLogin, loading = false, showFreeTrialBadge = true }: CTA
           aria-label="Начать использовать HH Agent бесплатно"
         >
           <span className={`flex items-center justify-center gap-2 ${actualLoading ? 'opacity-0' : ''}`}>
-            Начать бесплатно
+            Авторизоваться через HeadHunter
           </span>
-          
+
           {actualLoading && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex items-center gap-2">
@@ -164,22 +164,22 @@ const FAQ_ITEMS = [
   }
 ]
 
-interface LandingPageProps {}
+interface LandingPageProps { }
 
-export default function LandingPage({}: LandingPageProps) {
+export default function LandingPage({ }: LandingPageProps) {
   const [loading, setLoading] = useState(false)
-  
-const handleLogin = async () => {
-  setLoading(true)
-  try {
-    const apiService = ApiService.getInstance()
-    const data = await apiService.getAuthUrl()
-    window.location.href = data.url
-  } catch (error) {
-    console.error('Login error:', error)
-    setLoading(false)
+
+  const handleLogin = async () => {
+    setLoading(true)
+    try {
+      const apiService = ApiService.getInstance()
+      const data = await apiService.getAuthUrl()
+      window.location.href = data.url
+    } catch (error) {
+      console.error('Login error:', error)
+      setLoading(false)
+    }
   }
-}
 
   return (
     <>
@@ -189,7 +189,7 @@ const handleLogin = async () => {
         keywords="поиск работы, hh.ru, сопроводительные письма, AI помощник, автоматизация поиска работы, резюме, вакансии, HeadHunter, искусственный интеллект, персонализированные письма"
         canonicalUrl="https://hhagent.ru"
       />
-      
+
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Header */}
         <header className="bg-white shadow-sm border-b top-0 z-50">
@@ -213,11 +213,31 @@ const handleLogin = async () => {
                 <br />
                 <span className="text-[#d6001c]">на новом уровне</span>
               </h1>
-              
               <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto mb-8 sm:mb-10 leading-relaxed">
-                AI создает персонализированные сопроводительные письма для каждой вакансии на hh.ru, 
+                AI создает персонализированные сопроводительные письма для каждой вакансии на hh.ru,
                 увеличивая отклик работодателей в 3 раза
               </p>
+
+              {/* Pricing Benefits */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 sm:p-8 mb-8 sm:mb-10 max-w-4xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl sm:text-3xl mb-2">💳</div>
+                    <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Никаких подписок</h3>
+                    <p className="text-xs sm:text-sm text-gray-600">Платите только за использование</p>
+                  </div>
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl sm:text-3xl mb-2">💸</div>
+                    <h3 className="font-semibold text-gray-900 text-sm sm:text-base">От 2 рублей за отклик</h3>
+                    <p className="text-xs sm:text-sm text-gray-600">10 откликов = 20₽ вместо 100 минут времени</p>
+                  </div>
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="text-2xl sm:text-3xl mb-2">⚡</div>
+                    <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Всего 2₽ за 10 минут</h3>
+                    <p className="text-xs sm:text-sm text-gray-600">Сэкономленного времени написания</p>
+                  </div>
+                </div>
+              </div>
 
               <CTASection onLogin={handleLogin} loading={loading} />
             </div>
@@ -227,8 +247,8 @@ const handleLogin = async () => {
           <section className="container mx-auto px-4 pb-8 sm:pb-12" aria-labelledby="demo-section">
             <h2 id="demo-section" className="sr-only">Демонстрация работы HH Agent</h2>
             <div className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden max-w-5xl mx-auto">
-              <img 
-                src="/image.png" 
+              <img
+                src="/image.png"
                 alt="Демонстрация интерфейса HH Agent - создание персонализированных сопроводительных писем"
                 className="w-full h-auto"
                 width="1200"
@@ -244,7 +264,7 @@ const handleLogin = async () => {
               <h2 id="process-section" className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12">
                 Как это работает
               </h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
                 {PROCESS_STEPS.map((step, index) => (
                   <article key={index} className="bg-white p-6 sm:p-8 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -262,7 +282,7 @@ const handleLogin = async () => {
             <h2 id="features-section" className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12">
               Преимущества
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-5xl mx-auto">
               {FEATURES.map((feature, index) => (
                 <article key={index} className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -284,7 +304,7 @@ const handleLogin = async () => {
               <h2 id="faq-section" className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12">
                 Популярные вопросы
               </h2>
-              
+
               <div className="space-y-4 sm:space-y-6 max-w-3xl mx-auto">
                 {FAQ_ITEMS.map((item, index) => (
                   <article key={index} className="bg-white rounded-lg p-5 sm:p-6 shadow-md">
@@ -302,25 +322,25 @@ const handleLogin = async () => {
               <h2 id="personal-message" className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-6 sm:mb-8">
                 Слово от создателя
               </h2>
-              
+
               <div className="text-gray-500 space-y-4 text-sm sm:text-base lg:text-lg leading-relaxed">
                 <p>
                   Привет! Я создал HH Agent, чтобы помочь таким же людям, как и я, найти работу своей мечты.
                 </p>
-                
+
                 <p>
-                  Я искренне рад предоставить вам этот сервис. Честно говоря, я бы хотел сделать его еще дешевле — и работаю над этим каждый день. 
+                  Я искренне рад предоставить вам этот сервис. Честно говоря, я бы хотел сделать его еще дешевле — и работаю над этим каждый день.
                   Чем больше людей будут пользоваться сервисом, тем доступнее я смогу его сделать.
                 </p>
-                
+
                 <p>
                   <strong>Пользуйтесь, и я обещаю улучшать генерацию каждый день!</strong>
                 </p>
-                
+
                 <p>
                   <strong>Моя цель — не просто создать сервис для генерации, а сделать настоящего AI убийцу рынка поиска работы...</strong>
                 </p>
-                
+
                 <p>
                   Юзайте, <a href="#" className="text-[#d6001c] hover:text-[#c5001a] transition-colors font-medium ml-1">делитесь обратной связью! </a>
                 </p>
