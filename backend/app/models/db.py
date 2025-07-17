@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, Numeric, UUID, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Integer, DateTime, Numeric, UUID, ForeignKey, Text, JSON, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -104,7 +104,8 @@ class MappingSession(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
-    expires_at = Column(DateTime, server_default=func.now() + func.interval('7 days'))
+    # FIX: Use text() for raw SQL expression
+    expires_at = Column(DateTime, server_default=text("now() + interval '7 days'"))
     
     # Relationships
     user = relationship("User", back_populates="mapping_sessions")
