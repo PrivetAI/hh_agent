@@ -14,6 +14,7 @@ export const useAuth = () => {
   const authenticate = useCallback(async (code: string) => {
     try {
       const authData = await apiService.authenticate(code)
+      //@ts-ignore
       const { token: newToken } = authData
       
       AuthManager.setToken(newToken)

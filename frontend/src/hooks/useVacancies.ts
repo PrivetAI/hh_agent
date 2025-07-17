@@ -47,15 +47,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     setVacancies(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v))
   }, [])
 
-  const analyzeVacancy = useCallback(async (id: string) => {
-    try {
-      const data = await apiService.analyzeVacancy(id, selectedResumeId)
-      updateVacancy(id, { aiScore: data.score })
-    } catch (err) {
-      console.error('Analysis error:', err)
-    }
-  }, [apiService, updateVacancy, selectedResumeId])
-
   const generateLetter = useCallback(async (id: string) => {
     setGeneratingId(id)
     try {
@@ -327,7 +318,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     generatingId,
     searchVacancies,
     updateVacancy,
-    analyzeVacancy,
     generateLetter,
     generateAllLetters,
     sendApplications,
