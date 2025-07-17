@@ -104,15 +104,25 @@ class ApiService {
     return response.data
   }
 
-  async authenticate(code: string): Promise<{ access_token: string }> {
+  async authenticate(code: string) {
     return this.deduplicatedRequest(
       `auth:${code}`,
       async () => {
-        const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, {
-          params: { code },
-          timeout: 30000,
-        })
-        return response.data
+        if (process.env.NODE_ENV === 'development') {
+          const response = await axios.post(`${BASE_URL}/api/auth/callback`, null, {
+            params: { code },
+            timeout: 30000,
+          })
+          return response.data
+
+        }
+        else {
+          const response = await axios.post(`/api/auth/callback`, null, {
+            params: { code },
+            timeout: 30000,
+          })
+          return response.data
+        }
       }
     )
   }
