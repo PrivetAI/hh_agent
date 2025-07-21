@@ -60,95 +60,8 @@ class HHService:
         result = await self.hh_client.search_vacancies(token, params)
         return result
 
-    async def search_vacancies_with_descriptions(
-        self, hh_user_id: str, params: Dict[str, Any], user_id: str
-    ) -> Dict[str, Any]:
-        """Search vacancies and load full descriptions with DB caching and applied check"""
-        token = await self._get_token(hh_user_id)
 
-        resume_id = params.pop("resume_id", None)
-        for_resume = params.pop("for_resume", False)
 
-        if for_resume and resume_id:
-            result = await self.hh_client.search_vacancies_by_resume(
-                token, resume_id, params
-            )
-        else:
-            result = await self.hh_client.search_vacancies(token, params)
-
-        if "items" in result and result["items"]:
-            db_gen = get_db()
-            db = next(db_gen)
-
-            try:
-                vacancy_ids = [v["id"] for v in result["items"]]
-                VacancyCRUD.update_last_searched(db, vacancy_ids)
-
-                # Получаем список вакансий, на которые пользователь уже откликнулся
-                applied_vacancies = ApplicationCRUD.get_user_applied_vacancies(db, user_id, vacancy_ids)
-                applied_set = set(applied_vacancies)
-
-                stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
-
-                fresh_vacancies = {}
-                for vacancy_id in vacancy_ids:
-                    if vacancy_id not in stale_ids:
-                        db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
-                        if db_vacancy:
-                            fresh_vacancies[vacancy_id] = db_vacancy.full_data
-
-                if stale_ids:
-                    batch_size = settings.HH_BATCH_SIZE
-
-                    for i in range(0, len(stale_ids), batch_size):
-                        batch = stale_ids[i : i + batch_size]
-
-                        if i > 0:
-                            await asyncio.sleep(settings.HH_BATCH_DELAY)
-
-                        batch_tasks = []
-                        for vacancy_id in batch:
-                            batch_tasks.append(
-                                self._load_and_save_vacancy(token, vacancy_id, db)
-                            )
-
-                        batch_results = await asyncio.gather(
-                            *batch_tasks, return_exceptions=True
-                        )
-
-                        for vacancy_id, result_item in zip(batch, batch_results):
-                            if isinstance(result_item, Exception):
-                                logger.error(
-                                    f"Error loading vacancy {vacancy_id}: {result_item}"
-                                )
-                                basic_info = next(
-                                    (
-                                        v
-                                        for v in result["items"]
-                                        if v["id"] == vacancy_id
-                                    ),
-                                    None,
-                                )
-                                if basic_info:
-                                    fresh_vacancies[vacancy_id] = basic_info
-                            else:
-                                fresh_vacancies[vacancy_id] = result_item
-
-                final_items = []
-                for vacancy in result["items"]:
-                    vacancy_data = fresh_vacancies.get(vacancy["id"], vacancy)
-                    
-                    # Добавляем флаг applied
-                    vacancy_data["applied"] = vacancy["id"] in applied_set
-                    
-                    final_items.append(vacancy_data)
-
-                result["items"] = final_items
-
-            finally:
-                db.close()
-
-        return result
 
     async def _load_and_save_vacancy(
         self, token: str, vacancy_id: str, db: Session
@@ -248,3 +161,189 @@ class HHService:
 
         await self.redis_service.set_json(cache_key, saved_searches, 60)
         return saved_searches
+    
+    async def search_vacancies_with_descriptions(
+        self, hh_user_id: str, params: Dict[str, Any], user_id: str, filter_applied: bool = True
+    ) -> Dict[str, Any]:
+        """Search vacancies and load full descriptions with DB caching and applied check"""
+        token = await self._get_token(hh_user_id)
+
+        resume_id = params.pop("resume_id", None)
+        for_resume = params.pop("for_resume", False)
+
+        if for_resume and resume_id:
+            result = await self.hh_client.search_vacancies_by_resume(
+                token, resume_id, params
+            )
+        else:
+            result = await self.hh_client.search_vacancies(token, params)
+
+        if "items" in result and result["items"]:
+            db_gen = get_db()
+            db = next(db_gen)
+
+            try:
+                vacancy_ids = [v["id"] for v in result["items"]]
+                VacancyCRUD.update_last_searched(db, vacancy_ids)
+
+                # Получаем список вакансий, на которые пользователь уже откликнулся
+                applied_vacancies = ApplicationCRUD.get_user_applied_vacancies(db, user_id, vacancy_ids)
+                applied_set = set(applied_vacancies)
+
+                # Фильтруем вакансии, на которые уже откликнулись
+                if filter_applied:
+                    filtered_items = [v for v in result["items"] if v["id"] not in applied_set]
+                    # Обновляем результаты
+                    result["items"] = filtered_items
+                    result["found"] = len(filtered_items)
+                    vacancy_ids = [v["id"] for v in filtered_items]
+
+                stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
+
+                fresh_vacancies = {}
+                for vacancy_id in vacancy_ids:
+                    if vacancy_id not in stale_ids:
+                        db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
+                        if db_vacancy:
+                            fresh_vacancies[vacancy_id] = db_vacancy.full_data
+
+                if stale_ids:
+                    batch_size = settings.HH_BATCH_SIZE
+
+                    for i in range(0, len(stale_ids), batch_size):
+                        batch = stale_ids[i : i + batch_size]
+
+                        if i > 0:
+                            await asyncio.sleep(settings.HH_BATCH_DELAY)
+
+                        batch_tasks = []
+                        for vacancy_id in batch:
+                            batch_tasks.append(
+                                self._load_and_save_vacancy(token, vacancy_id, db)
+                            )
+
+                        batch_results = await asyncio.gather(
+                            *batch_tasks, return_exceptions=True
+                        )
+
+                        for vacancy_id, result_item in zip(batch, batch_results):
+                            if isinstance(result_item, Exception):
+                                logger.error(
+                                    f"Error loading vacancy {vacancy_id}: {result_item}"
+                                )
+                                basic_info = next(
+                                    (
+                                        v
+                                        for v in result["items"]
+                                        if v["id"] == vacancy_id
+                                    ),
+                                    None,
+                                )
+                                if basic_info:
+                                    fresh_vacancies[vacancy_id] = basic_info
+                            else:
+                                fresh_vacancies[vacancy_id] = result_item
+
+                final_items = []
+                for vacancy in result["items"]:
+                    vacancy_data = fresh_vacancies.get(vacancy["id"], vacancy)
+                    
+                    # Добавляем флаг applied (всегда false после фильтрации)
+                    vacancy_data["applied"] = vacancy["id"] in applied_set
+                    
+                    final_items.append(vacancy_data)
+
+                result["items"] = final_items
+
+            finally:
+                db.close()
+
+        return result
+
+    async def search_vacancies_by_url(
+        self, hh_user_id: str, search_url: str, user_id: str, filter_applied: bool = True
+    ) -> Dict[str, Any]:
+        """Search vacancies by saved search URL"""
+        token = await self._get_token(hh_user_id)
+        
+        # Use the URL directly with HH API
+        result = await self.hh_client.search_vacancies_by_url(token, search_url)
+        
+        if "items" in result and result["items"]:
+            db_gen = get_db()
+            db = next(db_gen)
+
+            try:
+                vacancy_ids = [v["id"] for v in result["items"]]
+                VacancyCRUD.update_last_searched(db, vacancy_ids)
+
+                # Get list of vacancies user has already applied to
+                applied_vacancies = ApplicationCRUD.get_user_applied_vacancies(db, user_id, vacancy_ids)
+                applied_set = set(applied_vacancies)
+
+                # Filter out applied vacancies
+                if filter_applied:
+                    filtered_items = [v for v in result["items"] if v["id"] not in applied_set]
+                    result["items"] = filtered_items
+                    result["found"] = len(filtered_items)
+                    vacancy_ids = [v["id"] for v in filtered_items]
+
+                # Continue with loading descriptions...
+                stale_ids = VacancyCRUD.get_stale_vacancies(db, vacancy_ids, hours=12)
+
+                fresh_vacancies = {}
+                for vacancy_id in vacancy_ids:
+                    if vacancy_id not in stale_ids:
+                        db_vacancy = VacancyCRUD.get_by_id(db, vacancy_id)
+                        if db_vacancy:
+                            fresh_vacancies[vacancy_id] = db_vacancy.full_data
+
+                if stale_ids:
+                    batch_size = settings.HH_BATCH_SIZE
+
+                    for i in range(0, len(stale_ids), batch_size):
+                        batch = stale_ids[i : i + batch_size]
+
+                        if i > 0:
+                            await asyncio.sleep(settings.HH_BATCH_DELAY)
+
+                        batch_tasks = []
+                        for vacancy_id in batch:
+                            batch_tasks.append(
+                                self._load_and_save_vacancy(token, vacancy_id, db)
+                            )
+
+                        batch_results = await asyncio.gather(
+                            *batch_tasks, return_exceptions=True
+                        )
+
+                        for vacancy_id, result_item in zip(batch, batch_results):
+                            if isinstance(result_item, Exception):
+                                logger.error(
+                                    f"Error loading vacancy {vacancy_id}: {result_item}"
+                                )
+                                basic_info = next(
+                                    (
+                                        v
+                                        for v in result["items"]
+                                        if v["id"] == vacancy_id
+                                    ),
+                                    None,
+                                )
+                                if basic_info:
+                                    fresh_vacancies[vacancy_id] = basic_info
+                            else:
+                                fresh_vacancies[vacancy_id] = result_item
+
+                final_items = []
+                for vacancy in result["items"]:
+                    vacancy_data = fresh_vacancies.get(vacancy["id"], vacancy)
+                    vacancy_data["applied"] = vacancy["id"] in applied_set
+                    final_items.append(vacancy_data)
+
+                result["items"] = final_items
+
+            finally:
+                db.close()
+
+        return result

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def get_saved_searches(
     user: User = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    """Get user's saved searches from HH"""
+    """Get user's saved searches from HH with URLs"""
     logger.info(f"Getting saved searches for user {user.hh_user_id}")
     
     try:

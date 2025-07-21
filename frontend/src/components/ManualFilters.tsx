@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import Select from 'react-select'
+import ApiService from '../services/apiService' // Import the real API service
 
 interface ManualFiltersProps {
   onSearch: (params: any) => void
@@ -36,38 +37,6 @@ interface Dictionaries {
   schedule: DictionaryItem[]
 }
 
-// Mock API Service for demonstration
-const mockApiService = {
-  getDictionaries: async (): Promise<Dictionaries> => ({
-    experience: [
-      { id: 'noExperience', name: 'Нет опыта' },
-      { id: 'between1And3', name: 'От 1 года до 3 лет' },
-      { id: 'between3And6', name: 'От 3 до 6 лет' },
-      { id: 'moreThan6', name: 'Более 6 лет' }
-    ],
-    employment: [
-      { id: 'full', name: 'Полная занятость' },
-      { id: 'part', name: 'Частичная занятость' },
-      { id: 'project', name: 'Проектная работа' }
-    ],
-    schedule: [
-      { id: 'fullDay', name: 'Полный день' },
-      { id: 'shift', name: 'Сменный график' },
-      { id: 'flexible', name: 'Гибкий график' },
-      { id: 'remote', name: 'Удаленная работа' }
-    ]
-  }),
-  getAreas: async (): Promise<any[]> => [{
-    id: '113',
-    name: 'Россия',
-    areas: [
-      { id: '1', name: 'Москва' },
-      { id: '2', name: 'Санкт-Петербург' },
-      { id: '3', name: 'Новосибирск' }
-    ]
-  }]
-}
-
 // Areas helper
 class AreasHelper {
   static flattenRussianAreas(areas: any[]): Area[] {
@@ -85,6 +54,7 @@ export default function ManualFilters({ onSearch, loading }: ManualFiltersProps)
   const [areas, setAreas] = useState<Area[]>([])
   const [dictionaries, setDictionaries] = useState<Dictionaries | null>(null)
   const [inputValue, setInputValue] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<SearchFilters>({
     text: '',
     area: '',
@@ -99,13 +69,26 @@ export default function ManualFilters({ onSearch, loading }: ManualFiltersProps)
   })
 
   useEffect(() => {
-    Promise.all([
-      mockApiService.getDictionaries(),
-      mockApiService.getAreas()
-    ]).then(([dictData, areasData]) => {
-      setDictionaries(dictData)
-      setAreas(AreasHelper.flattenRussianAreas(areasData))
-    }).catch(console.error)
+    const apiService = ApiService.getInstance()
+    
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const [dictData, areasData] = await Promise.all([
+          apiService.getDictionaries(),
+          apiService.getAreas()
+        ])
+        
+        setDictionaries(dictData)
+        setAreas(AreasHelper.flattenRussianAreas(areasData))
+      } catch (error) {
+        console.error('Error loading data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
   }, [])
 
   const handleSearch = () => {
@@ -147,6 +130,16 @@ export default function ManualFilters({ onSearch, loading }: ManualFiltersProps)
 
   const updateFilter = (key: keyof SearchFilters, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }))
+  }
+
+  // Show loading state while data is being fetched
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="inline-block w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <span className="ml-2 text-gray-600">Загрузка данных...</span>
+      </div>
+    )
   }
 
   return (

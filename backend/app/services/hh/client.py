@@ -221,3 +221,26 @@ class HHClient:
                 )
     
             return response.json()
+        
+
+    async def search_vacancies_by_url(self, token: str, search_url: str) -> dict:
+        """Search vacancies using saved search URL"""
+        async with httpx.AsyncClient() as client:
+            # Parse the URL to extract the path and query parameters
+            from urllib.parse import urlparse, parse_qs
+            
+            parsed = urlparse(search_url)
+            
+            # Use the query parameters from the URL
+            response = await client.get(
+                search_url,
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Search by URL failed: {response.status_code}")
+                response.raise_for_status()
+            
+            result = response.json()
+            logger.info(f"Found {result.get('found', 0)} vacancies using saved search URL")
+            return result

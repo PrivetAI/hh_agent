@@ -32,9 +32,9 @@ class AIService:
         
         # Доступные модели и промпты
         self.models = ["gpt-4.1-mini"]
-        self.prompts = ["first.md", "second.md", "third.md"]
+        self.prompts = ["one.md", "two.md", "three.md", "four.md", "five.md", "six.md", "seven.md"]
         
-        # Путь к папке с промптами
+        # Путь к папке с промптами 
         self.prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
         
         # Кэш для промптов
@@ -44,7 +44,7 @@ class AIService:
         logger.info("AI Service initialization completed successfully")
     
     def _validate_and_cache_prompts(self):
-        """Валидация и кэширование промптов"""
+        """Валидация и кэширование промптов""" 
         logger.info("Validating and caching prompt files...")
         
         for prompt_file in self.prompts:

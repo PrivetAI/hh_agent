@@ -46,10 +46,21 @@ async def get_vacancies(
     resume_id: Optional[str] = Query(None),
     for_resume: Optional[bool] = Query(None),
     saved_search_id: Optional[str] = Query(None),
+    saved_search_url: Optional[str] = Query(None),
     no_magic: Optional[bool] = Query(None),
+    filter_applied: Optional[bool] = Query(True),
     user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Get vacancies list with full descriptions - unified endpoint"""
+    
+    # If saved_search_url is provided, use it directly
+    if saved_search_url:
+        result = await hh_service.search_vacancies_by_url(
+            user.hh_user_id, saved_search_url, str(user.id), filter_applied
+        )
+        return result
+    
     params = {"page": page, "per_page": per_page}
 
     if text:
@@ -86,10 +97,12 @@ async def get_vacancies(
         )
     else:
         result = await hh_service.search_vacancies_with_descriptions(
-            user.hh_user_id, params, str(user.id)
+            user.hh_user_id, params, str(user.id), filter_applied
         )
     
     return result
+
+
 @router.get("/vacancy/{vacancy_id}")
 async def get_vacancy_details(vacancy_id: str, user: User = Depends(get_current_user)):
     """Get full vacancy details"""
