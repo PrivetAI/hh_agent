@@ -1,7 +1,11 @@
 # app/core/http_client.py
 import httpx
 from typing import Optional
+from contextlib import asynccontextmanager
+import logging
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 class HTTPClient:
     _instance: Optional[httpx.AsyncClient] = None
@@ -12,15 +16,18 @@ class HTTPClient:
             cls._instance = httpx.AsyncClient(
                 timeout=httpx.Timeout(
                     connect=30.0,
-                    read=30.0,
+                    read=30.0, 
                     write=30.0,
                     pool=30.0
                 ),
                 headers={
-                    "User-Agent": "HH-User-Agent",
+                    "User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})",
                     "HH-User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})"
-                }
+                },
+                follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
             )
+            logger.info("HTTP client initialized")
         return cls._instance
     
     @classmethod
@@ -28,3 +35,21 @@ class HTTPClient:
         if cls._instance:
             await cls._instance.aclose()
             cls._instance = None
+            logger.info("HTTP client closed")
+
+    @classmethod
+    @asynccontextmanager
+    async def get_temp_client(cls, **kwargs):
+        """Get temporary client with custom settings"""
+        client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0),
+            headers={
+                "User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})",
+                "HH-User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})"
+            },
+            **kwargs
+        )
+        try:
+            yield client
+        finally:
+            await client.aclose()

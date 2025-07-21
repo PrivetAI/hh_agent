@@ -90,14 +90,9 @@ async def get_vacancies(
     if no_magic is not None:
         params["no_magic"] = "true" if no_magic else "false"
 
-    if for_resume and resume_id:
-        result = await hh_service.search_vacancies_by_resume(
-            user.hh_user_id, resume_id, params
-        )
-    else:
-        result = await hh_service.search_vacancies_with_descriptions(
-            user.hh_user_id, params, str(user.id), filter_applied
-        )
+    result = await hh_service.search_vacancies_with_descriptions(
+        user.hh_user_id, params, str(user.id), filter_applied
+    )
     
     return result
 
