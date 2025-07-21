@@ -27,7 +27,6 @@ class ApplyRequest(BaseModel):
     message: str
     resume_id: Optional[str] = None
 
-
 @router.get("/vacancies")
 async def get_vacancies(
     text: Optional[str] = Query(None),

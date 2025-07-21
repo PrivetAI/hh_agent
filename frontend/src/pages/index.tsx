@@ -82,9 +82,24 @@ function AuthenticatedHome() {
 
   // Обработчик изменения страницы
   const handlePageChange = useCallback((page: number) => {
-    // Используем сохраненные параметры поиска с новой страницей
-    // Страницы в API начинаются с 0, а в UI с 1
-    searchVacancies({ ...currentSearchParams, page: page - 1 })
+    // Для saved_search_url нужно особое обращение
+    if (currentSearchParams.saved_search_url) {
+      // Парсим URL и добавляем/обновляем параметр page
+    try {
+        const url = new URL(currentSearchParams.saved_search_url)
+        url.searchParams.set('page', String(page - 1))
+        searchVacancies({ 
+          saved_search_url: url.toString(),
+          page: page - 1 
+        })
+      } catch (error) {
+        console.error('Error parsing saved search URL:', error)
+        searchVacancies({ ...currentSearchParams, page: page - 1 })
+      }
+    } else {
+      // Обычный поиск
+      searchVacancies({ ...currentSearchParams, page: page - 1 })
+    }
   }, [currentSearchParams, searchVacancies])
 
   return (

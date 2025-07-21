@@ -98,6 +98,9 @@ export default function ManualFilters({ onSearch, loading }: ManualFiltersProps)
       if (value === '') {
         return acc
       }
+      if (value === false){
+        return acc
+      }
       // Handle special cases
       if (key === 'salary' && value === '') {
         return acc

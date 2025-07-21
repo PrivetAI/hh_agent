@@ -1,4 +1,3 @@
-
 import logging
 import os
 logging.basicConfig(
@@ -7,8 +6,9 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from .core.database import create_tables
 from .core.config import settings
 # Create tables
@@ -28,6 +28,21 @@ logger.info(f"DATABASE_URL: {'SET' if settings.DATABASE_URL else 'NOT SET'}")
 logger.info("========================")
 
 from .api.v1 import auth, vacancy, payment, user, saved_searches
+from .core.http_client import HTTPClient
+
+# User-Agent Middleware для всех исходящих запросов
+class UserAgentMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Это middleware для входящих запросов, но мы можем использовать его для логирования
+        response = await call_next(request)
+        return response
+
+# Shutdown event
+@app.on_event("shutdown")
+async def shutdown_event():
+    await HTTPClient.close()
+    logger.info("HTTP client closed")
+
 # Статический список origins для разработки и продакшена
 origins = [
     "http://localhost:8000",
@@ -35,7 +50,7 @@ origins = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
     "http://localhost:3000",
-    "http://127.0.0.1:3000"
+    "http://127.0.0.1:3000",  # Добавил запятую
     "https://hhagent.ru",
     "http://hh_frontend:3000",  # Для связи между контейнерами
 ]

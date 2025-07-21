@@ -39,12 +39,12 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     setLoading('search')
     try {
       // Сохраняем per_page из параметров или используем значение по умолчанию
-      const perPage = params.per_page ? parseInt(params.per_page) : 20
-      
-      // Если это поиск по сохраненному поиску, устанавливаем per_page в 100
+     // Если это поиск по сохраненному поиску, устанавливаем per_page в 100
       if (params.saved_search_id) {
         params.per_page = 100
       }
+      
+      const perPage = params.per_page ? parseInt(params.per_page) : 20
       
       // Убеждаемся что page передается как число
       if (params.page !== undefined) {
@@ -53,6 +53,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
         params.page = 0
       }
       
+    
       const data = await apiService.searchVacancies(params)
       
       const vacanciesWithSelection = (data.items || []).map((v: Vacancy) => ({
@@ -79,7 +80,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
       setLoading('')
     }
   }, [apiService])
-
+  
   const updateVacancy = useCallback((id: string, updates: Partial<VacancyWithAI>) => {
     setVacancies(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v))
   }, [])

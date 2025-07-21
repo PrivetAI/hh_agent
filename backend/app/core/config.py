@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     HH_BATCH_SIZE: int = 5
     HH_BATCH_DELAY: float = 1.0
     HH_RETRY_COUNT: int = 3
-    
+    HH_APP_NAME: str = "hh_agent"
+    HH_CONTACT_EMAIL: str = "support@hhagent.ru"
     @field_validator('ROBOKASSA_TEST_MODE', mode='before')
     @classmethod
     def parse_bool(cls, v):
