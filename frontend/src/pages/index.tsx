@@ -1,5 +1,5 @@
 // frontend/src/pages/index.tsx
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useVacancies } from '../hooks/useVacancies'
 import VacancyFilters from '../components/VacancyFilters'
@@ -8,6 +8,7 @@ import ResumeSelector from '../components/ResumeSelector'
 import LandingPage from '../components/LandingPage'
 import SEOHead from '../components/Head'
 import Footer from '../components/Footer'
+import Pagination from '../components/Pagination'
 import { TableSkeleton } from '../components/ui/Skeleton'
 import { CreditsInfo } from '../components/CreditsInfo'
 import { useCredits } from '../hooks/useCredits'
@@ -47,7 +48,11 @@ export default function Home() {
 
 function AuthenticatedHome() {
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null)
+  const [currentSearchParams, setCurrentSearchParams] = useState<any>({})
   const { refreshCredits, refreshTrigger, hasCredits, credits, applications24h } = useCredits()
+  
+  // Храним per_page отдельно для передачи в фильтры
+  const [perPage, setPerPage] = useState<string>('20')
 
   const {
     vacancies,
@@ -57,10 +62,30 @@ function AuthenticatedHome() {
     sendApplications,
     searchVacancies,
     generateAndSendSelected,
-    updateVacancy
+    updateVacancy,
+    paginationMeta
   } = useVacancies(selectedResumeId, refreshCredits)
 
   const { logout } = useAuth()
+
+  // Обработчик поиска с сохранением параметров
+  const handleSearch = useCallback((params: any) => {
+    // Сохраняем параметры поиска для пагинации
+    setCurrentSearchParams(params)
+    // Обновляем per_page если он изменился
+    if (params.per_page) {
+      setPerPage(params.per_page)
+    }
+    // Сбрасываем на первую страницу при новом поиске
+    searchVacancies({ ...params, page: 0 })
+  }, [searchVacancies])
+
+  // Обработчик изменения страницы
+  const handlePageChange = useCallback((page: number) => {
+    // Используем сохраненные параметры поиска с новой страницей
+    // Страницы в API начинаются с 0, а в UI с 1
+    searchVacancies({ ...currentSearchParams, page: page - 1 })
+  }, [currentSearchParams, searchVacancies])
 
   return (
     <>
@@ -109,23 +134,40 @@ function AuthenticatedHome() {
           />
 
           <VacancyFilters
-          selectedResumeId={selectedResumeId}
-            onSearch={searchVacancies}
+            selectedResumeId={selectedResumeId}
+            onSearch={handleSearch}
             loading={loading === 'search'}
           />
 
           {loading === 'search' ? (
             <TableSkeleton rows={10} />
           ) : (
-            <VacanciesTable
-              vacancies={vacancies}
-              onVacancyUpdate={updateVacancy}
-              onGenerateAll={generateAllLetters}
-              onSendSelected={sendApplications}
-              onGenerateAndSend={generateAndSendSelected}
-              loading={loading}
-              generatingId={generatingId}
-            />
+            <>
+              <VacanciesTable
+                vacancies={vacancies}
+                onVacancyUpdate={updateVacancy}
+                onGenerateAll={generateAllLetters}
+                onSendSelected={sendApplications}
+                onGenerateAndSend={generateAndSendSelected}
+                loading={loading}
+                generatingId={generatingId}
+              />
+              
+              {/* Добавляем компонент пагинации */}
+              <Pagination
+                currentPage={paginationMeta.page + 1} // API использует 0-based, UI 1-based
+                totalPages={paginationMeta.pages}
+                onPageChange={handlePageChange}
+                loading={loading === 'search'}
+              />
+              
+              {/* Информация о результатах */}
+              {paginationMeta.found > 0 && (
+                <div className="text-center mt-4 text-sm text-[#999999]">
+                  Показано {vacancies.length} из {paginationMeta.found} вакансий
+                </div>
+              )}
+            </>
           )}
         </main>
 

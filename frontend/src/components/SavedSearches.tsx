@@ -29,76 +29,42 @@ export default function SavedSearches({ onSearch, loading }: SavedSearchesProps)
   }
 
   const handleSearch = (item: SavedSearchItem) => {
-    // Parse the URL to extract search parameters
-    try {
-      const url = new URL(item.items.url)
-      const params: any = {}
-      
-      // Extract all search parameters from the URL
-      url.searchParams.forEach((value, key) => {
-        // Convert string boolean values
-        if (value === 'true') {
-          params[key] = true
-        } else if (value === 'false') {
-          params[key] = false
-        } else if (key === 'page' || key === 'per_page' || key === 'salary') {
-          // Convert numeric values
-          params[key] = parseInt(value, 10)
-        } else {
-          params[key] = value
-        }
-      })
-      
-      // Call the search with extracted parameters
-      onSearch(params)
-    } catch (error) {
-      console.error('Ошибка обработки URL сохраненного поиска:', error)
-      alert('Не удалось обработать сохраненный поиск')
-    }
+    // Для сохраненных поисков используем saved_search_id
+    // Backend автоматически установит per_page в 100
+    onSearch({ 
+      saved_search_id: item.id,
+      page: 0
+    })
   }
 
-const handleSearchNew = (item: SavedSearchItem) => {
-  // Parse the URL to extract search parameters
-  try {
-    const url = new URL(item.new_items.url)
-    const params: any = {}
-    
-    // Extract all search parameters from the URL
-    url.searchParams.forEach((value, key) => {
-      // Skip subscription-related parameters that aren't needed for search
-      if (key === 'email_subscription' || key === 'subscription') {
-        return
+  const handleSearchNew = (item: SavedSearchItem) => {
+    // Для новых вакансий также используем saved_search_id
+    // но добавляем параметры из URL для фильтрации по дате
+    try {
+      const url = new URL(item.new_items.url)
+      const dateFrom = url.searchParams.get('date_from')
+      
+      const params: any = {
+        saved_search_id: item.id,
+        page: 0
       }
       
-      // Convert string boolean values
-      if (value === 'true') {
-        params[key] = true
-      } else if (value === 'false') {
-        params[key] = false
-      } else if (key === 'page' || key === 'per_page' || key === 'salary') {
-        // Convert numeric values
-        params[key] = parseInt(value, 10)
-      } else if (key === 'date_from') {
-        // Use the already properly URL-encoded value as-is
-        // The URL object automatically decodes it, so we need to encode it back
-        // to match the expected format: 2025-07-16T22%3A52%3A28%2B0300
-        const decodedValue = decodeURIComponent(value)
-        params[key] = decodedValue
-      } else if (key === 'period') {
-        // Convert period to number if it exists
-        params[key] = parseInt(value, 10)
-      } else {
-        params[key] = value
+      // Добавляем date_from если есть
+      if (dateFrom) {
+        params.date_from = dateFrom
       }
-    })
-    
-    // Call the search with extracted parameters
-    onSearch(params)
-  } catch (error) {
-    console.error('Ошибка обработки URL новых вакансий:', error)
-    alert('Не удалось обработать поиск новых вакансий')
+      
+      onSearch(params)
+    } catch (error) {
+      console.error('Ошибка обработки URL новых вакансий:', error)
+      // Fallback - просто ищем по saved_search_id
+      onSearch({ 
+        saved_search_id: item.id,
+        page: 0
+      })
+    }
   }
-}
+  
   if (loadingSearches) {
     return (
       <div className="flex justify-center py-12">

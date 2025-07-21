@@ -11,30 +11,67 @@ interface AIMetadata {
 // Расширенный интерфейс вакансии
 interface VacancyWithAI extends Vacancy {
   aiLetter?: string
-  aiMetadata?: AIMetadata  // Новое поле для метаданных AI
+  aiMetadata?: AIMetadata
+}
+
+// Интерфейс для метаданных пагинации
+interface PaginationMeta {
+  page: number
+  pages: number
+  per_page: number
+  found: number
 }
 
 export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => void) => {
   const [vacancies, setVacancies] = useState<VacancyWithAI[]>([])
   const [loading, setLoading] = useState('')
   const [generatingId, setGeneratingId] = useState<string>('')
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    page: 0,
+    pages: 0,
+    per_page: 20,
+    found: 0
+  })
 
   const apiService = ApiService.getInstance()
-
 
   const searchVacancies = useCallback(async (params: any) => {
     setLoading('search')
     try {
-      // Use unified search method - backend will handle resume-based search if resume_id is provided
+      // Сохраняем per_page из параметров или используем значение по умолчанию
+      const perPage = params.per_page ? parseInt(params.per_page) : 20
+      
+      // Если это поиск по сохраненному поиску, устанавливаем per_page в 100
+      if (params.saved_search_id) {
+        params.per_page = 100
+      }
+      
+      // Убеждаемся что page передается как число
+      if (params.page !== undefined) {
+        params.page = parseInt(params.page)
+      } else {
+        params.page = 0
+      }
+      
       const data = await apiService.searchVacancies(params)
+      
       const vacanciesWithSelection = (data.items || []).map((v: Vacancy) => ({
         ...v,
         selected: true,
-        applied: false,
+        applied: v.applied || false,
         aiLetter: undefined,
         aiMetadata: undefined
       }))
+      
       setVacancies(vacanciesWithSelection)
+      
+      // Обновляем метаданные пагинации
+      setPaginationMeta({
+        page: data.page || 0,
+        pages: data.pages || 0,
+        per_page: data.per_page || perPage,
+        found: data.found || 0
+      })
     } catch (err: any) {
       console.error('Search error:', err)
       alert(err.response?.data?.detail || 'Ошибка поиска')
@@ -51,7 +88,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     setGeneratingId(id)
     try {
       const data = await apiService.generateLetter(id, selectedResumeId)
-      // Сохраняем и контент, и метаданные AI
       updateVacancy(id, {
         aiLetter: data.content,
         aiMetadata: {
@@ -121,7 +157,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
       setLoading('')
 
       if (hasGeneratedAny && onCreditsChange) {
-        console.log('Calling onCreditsChange after generation')
         onCreditsChange()
       }
     }
@@ -141,12 +176,11 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
 
     for (const vacancy of selected) {
       try {
-        // Передаем AI метаданные при отправке
         await apiService.applyToVacancy(
           vacancy.id,
           selectedResumeId,
           vacancy.aiLetter,
-          vacancy.aiMetadata  // Новый параметр с метаданными
+          vacancy.aiMetadata
         )
         setVacancies(prev => prev.filter(v => v.id !== vacancy.id))
         successful++
@@ -193,7 +227,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     let updatedVacancies = [...vacancies]
 
     try {
-      // Этап 1: Генерация откликов (если есть что генерировать)
       if (toGenerate.length > 0) {
         try {
           const creditsAmount = await (await apiService.getUserInfo()).credits
@@ -220,7 +253,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
           setGeneratingId(vacancy.id)
           try {
             const data = await apiService.generateLetter(vacancy.id, selectedResumeId)
-            // Обновляем локальный массив с метаданными
             updatedVacancies = updatedVacancies.map(v =>
               v.id === vacancy.id ? {
                 ...v,
@@ -242,7 +274,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
         setGeneratingId('')
       }
 
-      // Этап 2: Отправка всех готовых откликов
       const toSendFinal = updatedVacancies.filter(v => v.selected && v.aiLetter)
 
       if (toSendFinal.length > 0) {
@@ -252,7 +283,6 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
 
         for (const vacancy of toSendFinal) {
           try {
-            // Передаем метаданные при отправке
             await apiService.applyToVacancy(
               vacancy.id,
               selectedResumeId,
@@ -276,21 +306,16 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
         setVacancies(updatedVacancies)
       }
 
-      // Финальное сообщение
       let finalMessage = ''
-
       if (hasGeneratedAny) {
         finalMessage += `Создано откликов: ${toGenerate.length}\n`
       }
-
       if (totalSuccessfulSent > 0) {
         finalMessage += `Успешно отправлено: ${totalSuccessfulSent} откликов\n`
       }
-
       if (totalFailedSent > 0) {
         finalMessage += `Не удалось отправить: ${totalFailedSent}\n`
       }
-
       if (allErrors.length > 0 && allErrors.length <= 5) {
         finalMessage += '\nОшибки:\n' + allErrors.slice(0, 5).join('\n')
       }
@@ -304,9 +329,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
       setLoading('')
       setGeneratingId('')
 
-      // Обновляем кредиты если было сгенерировано что-то ИЛИ отправлено
       if ((hasGeneratedAny || hasSentAny) && onCreditsChange) {
-        console.log('Calling onCreditsChange after generate-and-send')
         onCreditsChange()
       }
     }
@@ -321,6 +344,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     generateLetter,
     generateAllLetters,
     sendApplications,
-    generateAndSendSelected
+    generateAndSendSelected,
+    paginationMeta
   }
 }
