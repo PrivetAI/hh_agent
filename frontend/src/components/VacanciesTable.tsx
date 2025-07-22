@@ -1,4 +1,4 @@
-import { useEffect, useState, React } from 'react'
+import { useEffect, useState } from 'react'
 import { LoadingButton } from './ui/LoadingButton'
 import { Vacancy } from '../types'
 interface TableProps {
@@ -82,7 +82,7 @@ export default function VacanciesTable({
     onGenerateAll()
   }
 
-  const openModal = (vacancy: Vacancy, e: React.MouseEvent) => {
+  const openModal = (vacancy: Vacancy, e: any) => {
     e.stopPropagation()
     setModalVacancy(vacancy)
   }
