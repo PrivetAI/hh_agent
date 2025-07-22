@@ -1,20 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LoadingButton } from './ui/LoadingButton'
-
-interface Vacancy {
-  id: string
-  name: string
-  salary?: { from?: number; to?: number; currency?: string }
-  employer: { name: string }
-  snippet?: { requirement?: string; responsibility?: string }
-  area: { name: string }
-  published_at?: string
-  schedule?: { name: string }
-  employment?: { name: string }
-  description?: string
-  aiLetter?: string
-  selected?: boolean
-}
+import { Vacancy } from '../types'
 
 interface TableProps {
   vacancies: Vacancy[]
@@ -37,8 +23,8 @@ export default function VacanciesTable({
 }: TableProps) {
   const [isMobile, setIsMobile] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [modalVacancy, setModalVacancy] = useState<Vacancy | null>(null)
   
-  // Фильтрация вакансий: показываем только выбранные после начала генерации
   const filteredVacancies = isGenerating ? vacancies.filter(v => v.selected) : vacancies
   
   const selectedCount = vacancies.filter(v => v.selected && !v.aiLetter).length
@@ -53,7 +39,6 @@ export default function VacanciesTable({
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // Отслеживаем начало генерации
   useEffect(() => {
     if (loading === 'generate' || loading === 'generate-and-send' || generatingId) {
       setIsGenerating(true)
@@ -96,6 +81,15 @@ export default function VacanciesTable({
 
   const generateAll = () => {
     onGenerateAll()
+  }
+
+  const openModal = (vacancy: Vacancy, e: MouseEvent) => {
+    e.stopPropagation()
+    setModalVacancy(vacancy)
+  }
+
+  const closeModal = () => {
+    setModalVacancy(null)
   }
 
   const isGeneratingState = loading === 'generate' || !!generatingId
@@ -174,7 +168,10 @@ export default function VacanciesTable({
               </div>
 
               {vacancy.description && (
-                <p className="text-sm text-[#666666] mb-3 line-clamp-10">
+                <p 
+                  className="text-sm text-[#666666] mb-3 line-clamp-10 cursor-pointer hover:text-[#4bb34b]"
+                  onClick={e => openModal(vacancy, e)}
+                >
                   {vacancy.description}
                 </p>
               )}
@@ -247,6 +244,34 @@ export default function VacanciesTable({
             }
           </LoadingButton>
         </div>
+
+        {modalVacancy && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={closeModal}
+          >
+            <div 
+              className="bg-white rounded-lg max-w-4xl max-h-[80vh] overflow-auto p-6"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-[#232529] mb-2">{modalVacancy.name}</h2>
+                  <p className="text-lg text-[#666666]">{modalVacancy.employer?.name}</p>
+                </div>
+                <button 
+                  onClick={closeModal}
+                  className="text-2xl text-[#999999] hover:text-[#232529] leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="prose max-w-none">
+                <div dangerouslySetInnerHTML={{ __html: modalVacancy.description || '' }} />
+              </div>
+            </div>
+          </div>
+        )}
       </>
     )
   }
@@ -345,7 +370,10 @@ export default function VacanciesTable({
                     </div>
                   </td>
                   <td className="p-3 align-top text-left min-w-[300px]">
-                    <p className="text-sm text-[#666666] line-clamp-10">
+                    <p 
+                      className="text-sm text-[#666666] line-clamp-10 cursor-pointer hover:text-[#4bb34b]"
+                      onClick={e => openModal(vacancy, e)}
+                    >
                       {vacancy.description || vacancy.snippet?.requirement || vacancy.snippet?.responsibility || ''}
                     </p>
                   </td>
@@ -385,6 +413,34 @@ export default function VacanciesTable({
           >
             ↑ Наверх к фильтрам
           </a>
+        </div>
+      )}
+
+      {modalVacancy && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={closeModal}
+        >
+          <div 
+            className="bg-white rounded-lg max-w-4xl max-h-[80vh] overflow-auto p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-[#232529] mb-2">{modalVacancy.name}</h2>
+                <p className="text-lg text-[#666666]">{modalVacancy.employer?.name}</p>
+              </div>
+              <button 
+                onClick={closeModal}
+                className="text-2xl text-[#999999] hover:text-[#232529] leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="prose max-w-none">
+              <div dangerouslySetInnerHTML={{ __html: modalVacancy.description || '' }} />
+            </div>
+          </div>
         </div>
       )}
     </>
