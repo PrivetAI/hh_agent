@@ -15,17 +15,17 @@ class HTTPClient:
         if cls._instance is None:
             cls._instance = httpx.AsyncClient(
                 timeout=httpx.Timeout(
-                    connect=30.0,
-                    read=30.0, 
-                    write=30.0,
-                    pool=30.0
+                    connect=60.0,
+                    read=60.0, 
+                    write=60.0,
+                    pool=60.0
                 ),
                 headers={
                     "User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})",
                     "HH-User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})"
                 },
                 follow_redirects=True,
-                limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
+                limits=httpx.Limits(max_keepalive_connections=50, max_connections=100)
             )
             logger.info("HTTP client initialized")
         return cls._instance
