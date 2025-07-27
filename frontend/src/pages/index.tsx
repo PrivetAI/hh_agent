@@ -22,22 +22,6 @@ export default function Home() {
     logout,
   } = useAuth()
 
-  if (isLoading) {
-    return (
-      <>
-        <SEOHead 
-          title="Загрузка - HH Agent"
-          noindex={true}
-        />
-        <div className="min-h-screen bg-[#f4f4f5] flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-3 border-[#d6001c] border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="mt-4 text-[#999999]">Загрузка...</p>
-          </div>
-        </div>
-      </>
-    )
-  }
 
   if (!isAuthenticated) {
     return <LandingPage />

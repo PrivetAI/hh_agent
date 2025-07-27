@@ -107,6 +107,73 @@ function CTASection({ onLogin, loading = false, showFreeTrialBadge = true }: CTA
   )
 }
 
+// FAQ Accordion Component
+interface FAQAccordionProps {
+  items: { question: string; answer: string }[]
+}
+
+function FAQAccordion({ items }: FAQAccordionProps) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  const toggleAccordion = (index: number) => {
+    setOpenIndex(openIndex === index ? null : index)
+  }
+
+  return (
+    <div className="space-y-3 max-w-4xl mx-auto">
+      {items.map((item, index) => (
+        <div
+          key={index}
+          className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden"
+        >
+          <button
+            onClick={() => toggleAccordion(index)}
+            className="w-full px-6 py-5 text-left flex items-center justify-between hover:bg-gray-50"
+            aria-expanded={openIndex === index}
+            aria-controls={`faq-answer-${index}`}
+          >
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 pr-4">
+              {item.question}
+            </h3>
+            <div className="flex-shrink-0">
+              <svg
+                className={`w-5 h-5 text-gray-500 transform transition-transform duration-200 ${
+                  openIndex === index ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </button>
+          
+          <div
+            id={`faq-answer-${index}`}
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              openIndex === index ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+            }`}
+          >
+            <div className="px-6 pb-5 pt-0">
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+                  {item.answer}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Constants
 const FEATURES = [
   {
@@ -152,16 +219,36 @@ const PROCESS_STEPS = [
 const FAQ_ITEMS = [
   {
     question: 'Как работает AI-генерация писем?',
-    answer: 'Система анализирует описание вакансии, требования и ваше резюме, создавая персонализированное письмо с акцентом на ваши сильные стороны'
+    answer: 'Система анализирует описание вакансии, требования и ваше резюме, создавая персонализированное письмо с акцентом на ваши сильные стороны. AI учитывает специфику индустрии, ключевые навыки и опыт, создавая уникальное обращение к каждому работодателю.'
   },
   {
     question: 'Насколько безопасно пользоваться приложением?',
-    answer: 'Используем только официальный OAuth API HeadHunter. Никаких блокировок и рисков'
+    answer: 'Мы используем только официальный OAuth API HeadHunter, что гарантирует полную безопасность. Никаких блокировок, рисков для аккаунта или нарушений правил hh.ru. Все данные передаются по защищенному соединению и не хранятся на наших серверах.'
+  },
+  {
+    question: 'Как используются мои данные?',
+    answer: 'Мы не передаем и не храним Ваши контакты, ФИО и другую личную информацию. Более того, при генерации откликов мы анонимизируем ваши резюме, скрыв названия компаний, периоды работы в соответствии с законом 152-ФЗ РФ. После генерации отклика они восстанавливаются на нашей стороне.'
   },
   {
     question: 'Что входит в бесплатный период?',
-    answer: '10 полноценных AI-генераций сопроводительных писем. Этого хватит, чтобы оценить качество и эффективность сервиса'
-  }
+    answer: '10 полноценных AI-генераций сопроводительных писем с возможностью редактирования и отправки. Этого достаточно, чтобы оценить качество сервиса и увидеть реальные результаты в виде откликов от работодателей.'
+  },
+  {
+    question: 'Можно ли редактировать сгенерированные письма?',
+    answer: 'Конечно! После генерации вы получаете полностью редактируемый текст. Можете изменить любую часть письма, добавить личные детали или скорректировать тон обращения под свой стиль коммуникации.'
+  },
+  {
+    question: 'Какого качества получаются письма?',
+    answer: 'AI создает письма профессионального качества, адаптированные под конкретную вакансию и вашу специализацию. Письма содержат релевантные примеры из вашего опыта, показывают понимание требований работодателя и мотивацию к работе в компании.'
+  },
+  {
+    question: 'Работает ли сервис со всеми типами вакансий?',
+    answer: 'Да, HH Agent эффективно работает с вакансиями любой специализации - от IT и маркетинга до продаж и управления. AI адаптирует стиль и содержание письма под специфику каждой индустрии и уровень позиции.'
+  },
+  {
+    question: 'Есть ли риск, что письма будут похожими?',
+    answer: 'Нет, каждое письмо уникально. AI не использует шаблоны, а создает индивидуальный текст для каждой вакансии, учитывая специфику компании, требования позиции и ваш личный опыт. Повторов не будет даже при отклике на похожие вакансии.'
+  },
 ]
 
 interface LandingPageProps { }
@@ -302,17 +389,10 @@ export default function LandingPage({ }: LandingPageProps) {
           <section className="bg-gray-100 py-12 sm:py-16" aria-labelledby="faq-section">
             <div className="container mx-auto px-4">
               <h2 id="faq-section" className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12">
-                Популярные вопросы
+                Часто задаваемые вопросы
               </h2>
 
-              <div className="space-y-4 sm:space-y-6 max-w-3xl mx-auto">
-                {FAQ_ITEMS.map((item, index) => (
-                  <article key={index} className="bg-white rounded-lg p-5 sm:p-6 shadow-md">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">{item.question}</h3>
-                    <p className="text-sm sm:text-base text-gray-600">{item.answer}</p>
-                  </article>
-                ))}
-              </div>
+              <FAQAccordion items={FAQ_ITEMS} />
             </div>
           </section>
 
@@ -329,8 +409,8 @@ export default function LandingPage({ }: LandingPageProps) {
                 </p>
 
                 <p>
-                  Я искренне рад предоставить вам этот сервис. Честно говоря, я бы хотел сделать его еще дешевле — и работаю над этим каждый день.
-                  Чем больше людей будут пользоваться сервисом, тем доступнее я смогу его сделать.
+                  Я искренне рад предоставить вам этот сервис.
+                  Чем больше людей будут пользоваться сервисом, тем лучше я смогу его сделать.
                 </p>
 
                 <p>
