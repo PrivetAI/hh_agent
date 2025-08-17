@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     HH_CLIENT_ID: str = ""
     HH_CLIENT_SECRET: str = ""
     OPENAI_API_KEY: str = ""
+    GOOGLE_API_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:3000"
     JWT_SECRET_KEY: str = "your-secret-key"
     JWT_ALGORITHM: str = "HS256"

@@ -4,10 +4,8 @@ import logging
 import random
 import time
 from typing import Dict, Any, Optional
-from openai import AsyncOpenAI
+import google.generativeai as genai
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from ..core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -15,24 +13,23 @@ class AIService:
     def __init__(self):
         logger.info("Initializing AI Service...")
         
-        # Проверяем API ключ
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            logger.error("OPENAI_API_KEY environment variable is not set")
-            raise ValueError("OPENAI_API_KEY environment variable is required")
+        # ===== КОНФИГУРАЦИЯ ПРОВАЙДЕРА =====
+        # Установите 'openai' или 'gemini'
+        self.ai_provider = 'openai'  # <-- ПЕРЕКЛЮЧЕНИЕ МЕЖДУ МОДЕЛЯМИ
         
-        logger.info("OpenAI API key found, length: %d characters", len(api_key))
+        # Инициализация провайдеров
+        if self.ai_provider == 'openai':
+            self._init_openai()
+        elif self.ai_provider == 'gemini':
+            self._init_gemini()
+        else:
+            raise ValueError(f"Unknown AI provider: {self.ai_provider}")
         
-        # Инициализируем клиент OpenAI
-        self.client = AsyncOpenAI(api_key=api_key)
+        logger.info(f"Using AI provider: {self.ai_provider}")
         
-        # Инициализируем сервис псевдонимизации
-        from .pseudonymization_service import PseudonymizationService
-        self.pseudonymizer = PseudonymizationService()
-        
-        # Доступные модели и промпты
-        self.models = ["gpt-4.1-mini"]
-        self.prompts = ["one.md", "two.md", "three.md", "four.md", "five.md", "six.md", "seven.md"]
+        # Промпты (общие для всех провайдеров)
+        # self.prompts = ["one.md", "two.md", "three.md", "four.md", "five.md", "six.md", "seven.md"]
+        self.prompts = ["gemini.md"]
         
         # Путь к папке с промптами 
         self.prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
@@ -42,6 +39,30 @@ class AIService:
         
         self._validate_and_cache_prompts()
         logger.info("AI Service initialization completed successfully")
+    
+    def _init_openai(self):
+       """Initialize OpenAI - сохраняем только ключ, клиент создаём на каждый запрос"""
+       api_key = os.getenv("OPENAI_API_KEY")
+       if not api_key:
+           logger.error("OPENAI_API_KEY environment variable is not set")
+           raise ValueError("OPENAI_API_KEY environment variable is required")
+
+       logger.info("OpenAI API key found, length: %d characters", len(api_key))
+       # НЕ создаём постоянный AsyncOpenAI клиент здесь — будем создавать и закрывать его на каждый запрос
+       self.openai_api_key = api_key
+       self.client = None
+       self.models = ["gpt-5"]  #o3 добавляет хуеты 
+    def _init_gemini(self):
+        """Инициализация Google Gemini"""
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            logger.error("GOOGLE_API_KEY environment variable is not set")
+            raise ValueError("GOOGLE_API_KEY environment variable is required")
+        
+        logger.info("Google API key found, length: %d characters", len(api_key))
+        genai.configure(api_key=api_key)
+        self.models = ["gemini-2.5-pro"]   # не менять
+
     
     def _validate_and_cache_prompts(self):
         """Валидация и кэширование промптов""" 
@@ -105,16 +126,11 @@ class AIService:
         
         # О себе (skills)
         if resume.get('skills'):
-            parts.append(f"О себе(дополнительная информация): {resume['skills']}")
-        
-        # Общий опыт
-        if resume.get('total_experience', {}).get('months'):
-            months = resume['total_experience']['months']
-            parts.append(f"Общий опыт работы: {months} месяцев")
+            parts.append(f"О себе: {resume['skills']}")
         
         # Опыт работы
         if resume.get('experience'):
-            parts.append("\nОпыт работы в компаниях:")
+            parts.append("\nОпыт работы:")
             for exp in resume['experience']:
                 exp_parts = []
                 
@@ -173,9 +189,144 @@ class AIService:
         
         return description
     
+    async def _generate_with_openai(self, system_prompt: str, user_prompt: str, model: str) -> str:
+        """Минимальная, надёжная версия для GPT-5 (Responses API).
+        Создаёт AsyncOpenAI в `async with` на время одного запроса, чтобы избежать зависаний.
+        """
+        import time
+        from openai import AsyncOpenAI
+
+        logger.info("OpenAI request start")
+        logger.debug("model=%s", model)
+        logger.debug("system_prompt_len=%d user_prompt_len=%d", len(system_prompt or ""), len(user_prompt or ""))
+
+        start_ts = time.time()
+        # Объединяем промпты
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
+
+        try:
+            # используем ключ, сохранённый при инициализации
+            api_key = getattr(self, "openai_api_key", None)
+            if not api_key:
+                logger.error("OpenAI API key missing on service instance")
+                raise RuntimeError("OpenAI API key not configured")
+
+            # Создаём и используем клиент внутри контекста — гарантированное закрытие/cleanup
+            async with AsyncOpenAI(api_key=api_key) as client:
+                logger.info("Using temporary AsyncOpenAI client for this request")
+                # вызов Responses API — минимально и согласно доке для gpt-5
+                resp = await client.responses.create(
+                    model=model,
+                    input=[
+                        {
+                            "role": "user",
+                            "content": full_prompt,
+                        },
+                    ],
+                    
+                    reasoning={"effort": "medium"},
+                    # при желании: max_output_tokens=15000
+                )
+
+            elapsed = time.time() - start_ts
+            logger.info("OpenAI call finished in %.2fs", elapsed)
+
+            # извлечение текста — очень простое (output_text или часть output)
+            text = ""
+            if getattr(resp, "output_text", None):
+                text = resp.output_text.strip()
+            else:
+                out = getattr(resp, "output", None)
+                if out:
+                    parts = []
+                    for item in out:
+                        content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+                        if isinstance(content, list):
+                            for c in content:
+                                if isinstance(c, dict) and c.get("type") == "output_text" and c.get("text"):
+                                    parts.append(c["text"])
+                                elif isinstance(c, str):
+                                    parts.append(c)
+                        elif isinstance(content, str):
+                            parts.append(content)
+                    if parts:
+                        text = "\n".join(p for p in parts if p).strip()
+
+            logger.info("Response id=%s", getattr(resp, "id", None))
+            logger.info("Response length=%d", len(text or ""))
+            logger.debug("Response preview: %s", (text or "")[:400])
+
+            return (text or "").strip()
+
+        except Exception as e:
+            logger.exception("OpenAI request error: %s", e)
+            # пробрасываем ошибку наверх — ваш generate_cover_letter это обработает
+            raise
+
+    async def _generate_with_gemini(self, system_prompt: str, user_prompt: str, model: str) -> str:
+        """Генерация через Google Gemini API с обработкой safety filters"""
+    
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
+        
+        # Create safety settings using proper objects
+        safety_settings = [
+        {
+            "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
+            "threshold": HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+            "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            "threshold": HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+            "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            "threshold": HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+            "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            "threshold": HarmBlockThreshold.BLOCK_NONE,
+        },
+    ]
+        
+        gemini_model = genai.GenerativeModel(
+            model_name=model,
+            generation_config={
+                "temperature": 1.1,
+                "top_p": 0.7,
+                "max_output_tokens": 10000,
+            },
+            safety_settings=safety_settings
+        )
+
+        # Объединяем промпты для Gemini
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
+
+        # Генерируем ответ
+        response = gemini_model.generate_content(full_prompt)
+
+        # Проверяем наличие текста в ответе
+        if not response.parts or not response.text:
+            # Проверяем finish_reason
+            if response.candidates and response.candidates[0].finish_reason:
+                finish_reason = response.candidates[0].finish_reason
+                logger.warning(f"Gemini response blocked with finish_reason: {finish_reason}")
+
+            raise Exception("Empty response from Gemini")
+
+        letter = response.text.strip()
+
+        # Логируем использование (если доступно)
+        if hasattr(response, 'usage_metadata'):
+            logger.info(f"Gemini token usage - prompt: {response.usage_metadata.prompt_token_count}, "
+                      f"completion: {response.usage_metadata.candidates_token_count}, "
+                      f"total: {response.usage_metadata.total_token_count}")
+
+        return letter
+
     async def generate_cover_letter(self, resume: dict, vacancy: dict, user_id: str) -> Dict[str, Any]:
-        """Генерация сопроводительного письма с псевдонимизацией"""
+        """Генерация сопроводительного письма"""
         logger.info(f"Starting cover letter generation for user: {user_id}")
+        logger.info(f"Using AI provider: {self.ai_provider}")
         start_time = time.time()
         
         # Выбираем модель и промпт
@@ -183,24 +334,14 @@ class AIService:
         selected_prompt = random.choice(self.prompts)
         logger.info(f"Selected model: {selected_model}, prompt: {selected_prompt}")
         
-        # Сохраняем ФИО для подписи
+        # Сохраняем ФИО для fallback (если нужно)
         first_name = resume.get('first_name', '')
         last_name = resume.get('last_name', '')
         full_name = f"{first_name} {last_name}".strip()
         
-        # Получаем сессию БД
-        db_gen = get_db()
-        db = next(db_gen)
-        
         try:
-            # Псевдонимизируем резюме
-            logger.info("Starting resume pseudonymization")
-            pseudo_resume, session_id = self.pseudonymizer.pseudonymize_resume(
-                db, user_id, resume
-            )
-            
-            # Подготавливаем тексты
-            resume_text = self._prepare_resume_text(pseudo_resume)
+            # Подготавливаем тексты напрямую из оригинального резюме
+            resume_text = self._prepare_resume_text(resume)
             vacancy_text = self._prepare_vacancy_text(vacancy)
             
             if not resume_text:
@@ -215,56 +356,40 @@ class AIService:
             
             # Получаем промпт из кэша
             system_prompt = self._get_prompt(selected_prompt)
-            system_prompt += "\n\nВАЖНО: В резюме используются псевдонимы для названий компаний и учебных заведений. Используй эти псевдонимы в письме как есть. НЕ используй имя кандидата в письме - оно будет добавлено автоматически."
             
-            user_prompt = f"""Резюме кандидата:
-{resume_text}
-
-Текст вакансии:
-{vacancy_text}
-
-ВАЖНО: Не используй имя кандидата и подпись в письме. Подпись будет добавлена автоматически."""
+            # ИЗМЕНЕНО: Убрали инструкцию про автоматическое добавление подписи
+            user_prompt = f"""
+    ##Резюме кандидата:
+    {resume_text}
+    ##Имя кандидата {full_name}
+       
+    ##Текст вакансии:
+    {vacancy_text}"""
             
-            # Генерируем письмо
-            logger.info("Sending request to OpenAI")
-            response = await self.client.chat.completions.create(
-                model=selected_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=1.1,
-                max_tokens=500,
-                top_p=0.7
-            )
+            # Генерируем письмо в зависимости от провайдера
+            logger.info(f"Sending request to {self.ai_provider}")
             
-            letter = response.choices[0].message.content.strip()
+            if self.ai_provider == 'openai':
+                letter = await self._generate_with_openai(system_prompt, user_prompt, selected_model)
+            elif self.ai_provider == 'gemini':
+                letter = await self._generate_with_gemini(system_prompt, user_prompt, selected_model)
+            else:
+                raise ValueError(f"Unknown AI provider: {self.ai_provider}")
+            
             logger.info(f"Generated letter length: {len(letter)} characters")
             
-            # Логируем токены
-            if hasattr(response, 'usage') and response.usage:
-                logger.info(f"Token usage - prompt: {response.usage.prompt_tokens}, "
-                          f"completion: {response.usage.completion_tokens}, "
-                          f"total: {response.usage.total_tokens}")
-            
-            # Восстанавливаем оригинальные названия
-            logger.info("Restoring original company/education names")
-            original_letter = self.pseudonymizer.restore_text(db, session_id, letter)
-            
-            # Добавляем подпись
-            if full_name:
-                original_letter = self._add_signature(original_letter, full_name)
-            
-            # Очищаем кэш псевдонимизации для этой сессии
-            self.pseudonymizer.clear_cache(session_id)
+            # УДАЛЕНО: Больше не добавляем подпись вручную
+            # if full_name:
+            #     letter = self._add_signature(letter, full_name)
             
             total_duration = time.time() - start_time
             logger.info(f"Cover letter generation completed in {total_duration:.2f} seconds")
             
             return {
-                "content": original_letter,
+                "content": letter,
                 "prompt_filename": selected_prompt,
-                "ai_model": selected_model
+                "ai_model": selected_model,
+                "ai_provider": self.ai_provider
             }
             
         except Exception as e:
@@ -274,34 +399,8 @@ class AIService:
             fallback_result = self._get_fallback_letter(vacancy, full_name)
             fallback_result["prompt_filename"] = selected_prompt
             fallback_result["ai_model"] = selected_model
+            fallback_result["ai_provider"] = self.ai_provider
             return fallback_result
-            
-        finally:
-            try:
-                db.close()
-            except Exception as e:
-                logger.error(f"Error closing database session: {e}")
-    
-    def _add_signature(self, letter: str, full_name: str) -> str:
-        """Добавление подписи к письму"""
-        if not full_name:
-            return letter
-        
-        # Убираем лишние пробелы в конце
-        letter = letter.rstrip()
-        
-        # Проверяем, не заканчивается ли письмо уже на имя
-        if letter.endswith(full_name):
-            return letter
-        
-        # Добавляем подпись
-        if not letter.endswith(','):
-            letter += "\n\nС уважением,"
-        
-        letter += f"\n{full_name}"
-        
-        logger.info(f"Added signature with name: {full_name}")
-        return letter
     
     def _get_fallback_letter(self, vacancy: dict, full_name: str) -> Dict[str, Any]:
         """Генерация запасного письма при ошибке"""
@@ -310,8 +409,9 @@ class AIService:
         vacancy_name = vacancy.get('name', 'вашу вакансию')
         company_name = vacancy.get('employer', {}).get('name', 'вашей компании')
         
+        # Письмо уже содержит подпись
         fallback_letter = f"""Здравствуйте!
-
+    
 Меня заинтересовала вакансия "{vacancy_name}" в {company_name}.
 
 Мой профессиональный опыт и навыки соответствуют требованиям данной позиции. Готов применить свои знания для достижения целей компании.
