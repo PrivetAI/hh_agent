@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
-
+import asyncio
 from ...api.deps import get_current_user, check_user_credits, get_db
 from ...crud.user import UserCRUD
 from ...crud.payment import LetterGenerationCRUD
@@ -110,7 +110,7 @@ async def generate_letter(
     user: User = Depends(check_user_credits),
     db: Session = Depends(get_db)
 ):
-    """Generate cover letter for vacancy (costs 1 credit only for successful generation)"""
+    """Generate cover letter for vacancy with timeout protection"""
     logger.info(f"Generating letter for vacancy {vacancy_id}, user {user.hh_user_id}")
     
     try:
@@ -118,19 +118,33 @@ async def generate_letter(
         vacancy = await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
         vacancy_title = vacancy.get("name", "Неизвестная вакансия")
         
-        # Generate letter with user_id for pseudonymization
-        result = await hh_service.generate_cover_letter(
-            user.hh_user_id, 
-            vacancy_id, 
-            resume_id,
-            str(user.id)  # Передаем user_id для псевдонимизации
-        )
+        # Set timeout for the entire operation
+        generation_timeout = 75  # seconds (slightly more than AI service timeout)
+        
+        try:
+            # Generate letter with timeout protection at API level
+            result = await asyncio.wait_for(
+                hh_service.generate_cover_letter(
+                    user.hh_user_id, 
+                    vacancy_id, 
+                    resume_id,
+                    str(user.id)
+                ),
+                timeout=generation_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Letter generation timed out after {generation_timeout}s for vacancy {vacancy_id}")
+            # Return error, not fallback - let the client handle retry
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Letter generation timed out. Please try again."
+            )
         
         # Check if it's a fallback letter - don't charge credits for fallback
         if result.get("is_fallback", False):
             logger.warning(f"Fallback letter generated for user {user.id} - credits not deducted")
         else:
-            # Списываем кредит только за успешную генерацию
+            # Deduct credit only for successful generation
             success = UserCRUD.decrement_credits(db, user.id)
             if not success:
                 raise HTTPException(
@@ -139,7 +153,7 @@ async def generate_letter(
                 )
             logger.info(f"Successfully generated letter and deducted 1 credit from user {user.id}")
         
-        # Возвращаем полную информацию клиенту (без is_fallback флага)
+        # Return full information to client (without is_fallback flag)
         return CoverLetter(
             content=result["content"],
             prompt_filename=result["prompt_filename"],

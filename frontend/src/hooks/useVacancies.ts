@@ -2,19 +2,16 @@ import { useState, useCallback } from 'react'
 import ApiService from '../services/apiService'
 import { Vacancy } from '../types'
 
-// Расширенный интерфейс для AI метаданных
 interface AIMetadata {
   prompt_filename: string
   ai_model: string
 }
 
-// Расширенный интерфейс вакансии
 interface VacancyWithAI extends Vacancy {
   aiLetter?: string
   aiMetadata?: AIMetadata
 }
 
-// Интерфейс для метаданных пагинации
 interface PaginationMeta {
   page: number
   pages: number
@@ -25,7 +22,7 @@ interface PaginationMeta {
 export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => void) => {
   const [vacancies, setVacancies] = useState<VacancyWithAI[]>([])
   const [loading, setLoading] = useState('')
-  const [generatingId, setGeneratingId] = useState<string>('')
+  const [generatingIds, setGeneratingIds] = useState<string[]>([])
   const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
     page: 0,
     pages: 0,
@@ -38,24 +35,20 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
   const searchVacancies = useCallback(async (params: any) => {
     setLoading('search')
     try {
-      // Сохраняем per_page из параметров или используем значение по умолчанию
-     // Если это поиск по сохраненному поиску, устанавливаем per_page в 100
       if (params.saved_search_id) {
         params.per_page = 100
       }
-      
+
       const perPage = params.per_page ? parseInt(params.per_page) : 20
-      
-      // Убеждаемся что page передается как число
+
       if (params.page !== undefined) {
         params.page = parseInt(params.page)
       } else {
         params.page = 0
       }
-      
-    
+
       const data = await apiService.searchVacancies(params)
-      
+
       const vacanciesWithSelection = (data.items || []).map((v: Vacancy) => ({
         ...v,
         selected: true,
@@ -63,10 +56,9 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
         aiLetter: undefined,
         aiMetadata: undefined
       }))
-      
+
       setVacancies(vacanciesWithSelection)
-      
-      // Обновляем метаданные пагинации
+
       setPaginationMeta({
         page: data.page || 0,
         pages: data.pages || 0,
@@ -80,13 +72,13 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
       setLoading('')
     }
   }, [apiService])
-  
+
   const updateVacancy = useCallback((id: string, updates: Partial<VacancyWithAI>) => {
     setVacancies(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v))
   }, [])
 
   const generateLetter = useCallback(async (id: string) => {
-    setGeneratingId(id)
+    setGeneratingIds(prev => [...prev, id])
     try {
       const data = await apiService.generateLetter(id, selectedResumeId)
       updateVacancy(id, {
@@ -99,15 +91,14 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     } catch (err) {
       console.error('Generation error:', err)
     } finally {
-      setGeneratingId('')
+      setGeneratingIds(prev => prev.filter(gId => gId !== id))
     }
   }, [apiService, updateVacancy, selectedResumeId])
 
   const generateAllLetters = useCallback(async () => {
-    if (loading === 'generate' || loading === 'generate-and-send') return
+    if (loading === 'generate') return
 
     const toGenerate = vacancies.filter(v => !v.aiLetter && v.selected)
-
     if (toGenerate.length === 0) return
 
     try {
@@ -127,46 +118,56 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
     }
 
     setLoading('generate')
-    const processedIds = new Set()
+    setGeneratingIds(toGenerate.map(v => v.id))
+    
     let hasGeneratedAny = false
 
     try {
-      for (const vacancy of toGenerate) {
-        if (processedIds.has(vacancy.id)) continue
-        processedIds.add(vacancy.id)
-
-        setGeneratingId(vacancy.id)
-        try {
-          const data = await apiService.generateLetter(vacancy.id, selectedResumeId)
-          setVacancies(prev => prev.map(v =>
-            v.id === vacancy.id ? {
-              ...v,
+      const promises = toGenerate.map(vacancy =>
+        apiService.generateLetter(vacancy.id, selectedResumeId)
+          .then(data => {
+            updateVacancy(vacancy.id, {
               aiLetter: data.content,
               aiMetadata: {
                 prompt_filename: data.prompt_filename,
                 ai_model: data.ai_model
               }
-            } : v
-          ))
-          hasGeneratedAny = true
-        } catch (err) {
-          console.error('Generation error:', err)
-        }
+            })
+            
+            setGeneratingIds(prev => prev.filter(id => id !== vacancy.id))
+            hasGeneratedAny = true
+            
+            return { success: true, id: vacancy.id }
+          })
+          .catch(err => {
+            console.error(`Generation error for ${vacancy.id}:`, err)
+            setGeneratingIds(prev => prev.filter(id => id !== vacancy.id))
+            return { success: false, id: vacancy.id, error: err }
+          })
+      )
+
+      const results = await Promise.allSettled(promises)
+
+      const succeeded = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+      const failed = results.filter(r => r.status === 'fulfilled' && !r.value.success).length
+
+      if (failed > 0) {
+        console.log(`Генерация завершена: ${succeeded} успешно, ${failed} с ошибками`)
       }
     } finally {
-      setGeneratingId('')
       setLoading('')
+      setGeneratingIds([])
 
       if (hasGeneratedAny && onCreditsChange) {
         onCreditsChange()
       }
     }
-  }, [vacancies, loading, apiService, selectedResumeId, onCreditsChange])
+  }, [vacancies, loading, apiService, selectedResumeId, onCreditsChange, updateVacancy])
 
   const sendApplications = useCallback(async () => {
     const selected = vacancies.filter(v => v.selected && v.aiLetter)
     if (selected.length === 0) {
-      alert('Нет вакансий для отправки или все уже отправлены')
+      alert('Нет вакансий для отправки')
       return
     }
 
@@ -211,7 +212,7 @@ export const useVacancies = (selectedResumeId?: string, onCreditsChange?: () => 
   return {
     vacancies,
     loading,
-    generatingId,
+    generatingIds,
     searchVacancies,
     updateVacancy,
     generateLetter,

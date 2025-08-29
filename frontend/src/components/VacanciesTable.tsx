@@ -8,7 +8,7 @@ interface TableProps {
   onGenerateAll: () => void
   onSendSelected: () => void
   loading?: string
-  generatingId?: string
+  generatingIds?: string[]
 }
 
 export default function VacanciesTable({
@@ -17,7 +17,7 @@ export default function VacanciesTable({
   onGenerateAll,
   onSendSelected,
   loading,
-  generatingId
+  generatingIds
 }: TableProps) {
   const [isMobile, setIsMobile] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -38,10 +38,10 @@ export default function VacanciesTable({
   }, [])
 
   useEffect(() => {
-    if (loading === 'generate' || loading === 'generate-and-send' || generatingId) {
+    if (loading === 'generate' || loading === 'generate-and-send' || generatingIds.length) {
       setIsGenerating(true)
     }
-  }, [loading, generatingId])
+  }, [loading, generatingIds])
 
   const toggleAll = () => {
     const newValue = !allSelected
@@ -108,7 +108,7 @@ export default function VacanciesTable({
     setModalVacancy(null)
   }
 
-  const isGeneratingState = loading === 'generate' || !!generatingId
+  const isGeneratingState = loading === 'generate' || !!generatingIds.length
   const isSending = loading === 'send'
   const isGeneratingAndSending = loading === 'generate-and-send'
 
@@ -192,7 +192,7 @@ export default function VacanciesTable({
                 </p>
               )}
 
-              {generatingId === vacancy.id ? (
+              {generatingIds.includes(vacancy.id) ? (
                 <div className="flex justify-center items-center h-[240px] bg-[#f4f4f5] rounded">
                   <span className="area-loader" />
                 </div>
@@ -372,7 +372,7 @@ export default function VacanciesTable({
                     </p>
                   </td>
                   <td className="p-3 align-top text-left">
-                    {generatingId === vacancy.id ? (
+                    {generatingIds.includes(vacancy.id) ? (
                       <div className="flex justify-center items-center h-[240px] bg-[#f4f4f5] rounded">
                         <span className="area-loader" />
                       </div>

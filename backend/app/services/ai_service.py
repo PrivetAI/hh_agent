@@ -1,10 +1,13 @@
+# app/services/ai_service.py
 import os
 import re
 import logging
 import random
 import time
+import asyncio
 from typing import Dict, Any, Optional
 from fastapi import HTTPException
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +15,11 @@ class AIService:
     def __init__(self):
         logger.info("Initializing AI Service...")
         
-        # ===== КОНФИГУРАЦИЯ ПРОВАЙДЕРА =====
-        # Установите 'openai' или 'gemini'
-        self.ai_provider = 'openai'  # <-- ПЕРЕКЛЮЧЕНИЕ МЕЖДУ МОДЕЛЯМИ
+        # Provider configuration
+        self.ai_provider = 'openai'
+        self.generation_timeout = 120  # Total timeout for generation
         
-        # Инициализация провайдеров
+        # Initialize providers
         if self.ai_provider == 'openai':
             from .ai_providers.openai_provider import OpenAIProvider
             api_key = os.getenv("OPENAI_API_KEY")
@@ -36,20 +39,19 @@ class AIService:
         
         logger.info(f"Using AI provider: {self.ai_provider}")
         
-        # Промпты
-        self.prompts = ["new_gpt.md"]  # You can add more prompt files here
-        
-        # Путь к папке с промптами
+        # Prompts
+        self.prompts = ["new_gpt.md"]
         self.prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
-        
-        # Кэш для промптов
         self._prompts_cache = {}
+        
+        # Thread pool for CPU-bound tasks
+        self.executor = ThreadPoolExecutor(max_workers=4)
         
         self._validate_and_cache_prompts()
         logger.info("AI Service initialization completed successfully")
     
     def _validate_and_cache_prompts(self):
-        """Валидация и кэширование промптов"""
+        """Validation and caching of prompts"""
         logger.info("Validating and caching prompt files...")
         
         for prompt_file in self.prompts:
@@ -66,11 +68,10 @@ class AIService:
                 logger.warning(f"Prompt file {prompt_file} not found at {prompt_path}")
     
     def _get_prompt(self, filename: str) -> str:
-        """Получить промпт из кэша или файла"""
+        """Get prompt from cache or file"""
         if filename in self._prompts_cache:
             return self._prompts_cache[filename]
         
-        # Если не в кэше, загружаем
         prompt_path = os.path.join(self.prompts_dir, filename)
         try:
             with open(prompt_path, 'r', encoding='utf-8') as f:
@@ -82,37 +83,42 @@ class AIService:
             raise HTTPException(status_code=500, detail=f"Prompt file {filename} not found")
     
     def _extract_text(self, html_text: str) -> str:
-        """Извлечение текста из HTML"""
+        """Extract text from HTML - CPU-bound operation"""
         if not html_text:
             return ""
         
-        # Удаляем скрипты и стили
+        # Remove scripts and styles
         text = re.sub(r'<(script|style).*?>.*?</\1>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
-        # Удаляем HTML теги
+        # Remove HTML tags
         text = re.sub(r'<.*?>', ' ', text)
-        # Заменяем HTML entities
+        # Replace HTML entities
         text = re.sub(r'&nbsp;', ' ', text)
         text = re.sub(r'&quot;', '"', text)
         text = re.sub(r'&amp;', '&', text)
         text = re.sub(r'&lt;', '<', text)
         text = re.sub(r'&gt;', '>', text)
-        # Нормализуем пробелы
+        # Normalize spaces
         text = ' '.join(text.split())
         
         return text.strip()
     
+    async def _extract_text_async(self, html_text: str) -> str:
+        """Run CPU-bound text extraction in thread pool"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(self.executor, self._extract_text, html_text)
+    
     def _prepare_resume_text(self, resume: dict) -> str:
-        """Подготовка текста резюме для AI"""
+        """Prepare resume text for AI"""
         if not resume:
             return ""
         
         parts = []
         
-        # О себе (skills)
+        # About section
         if resume.get('skills'):
             parts.append(f"О себе: {resume['skills']}")
         
-        # Опыт работы
+        # Work experience
         if resume.get('experience'):
             parts.append("\nОпыт работы:")
             for exp in resume['experience']:
@@ -133,7 +139,7 @@ class AIService:
                 if exp_parts:
                     parts.append("- " + ", ".join(exp_parts))
         
-        # Образование
+        # Education
         if resume.get('education', {}).get('primary'):
             parts.append("\nОбразование:")
             for edu in resume['education']['primary']:
@@ -149,7 +155,7 @@ class AIService:
                 if edu_parts:
                     parts.append("- " + ", ".join(edu_parts))
         
-        # Языки
+        # Languages
         if resume.get('language'):
             lang_list = []
             for lang in resume['language']:
@@ -161,37 +167,37 @@ class AIService:
         
         return '\n'.join(parts)
     
-    def _prepare_vacancy_text(self, vacancy: dict) -> str:
-        """Подготовка текста вакансии"""
+    async def _prepare_vacancy_text(self, vacancy: dict) -> str:
+        """Prepare vacancy text with async HTML extraction"""
         if not vacancy or not vacancy.get('description'):
             return ""
         
-        # Если описание уже очищено от HTML, возвращаем как есть
         description = vacancy['description']
         if '<' in description and '>' in description:
-            return self._extract_text(description)
+            # Use async text extraction for CPU-bound operation
+            return await self._extract_text_async(description)
         
         return description
     
     async def generate_cover_letter(self, resume: dict, vacancy: dict, user_id: str) -> Dict[str, Any]:
-        """Генерация сопроводительного письма"""
+        """Generate cover letter with timeout protection and fallback"""
         logger.info(f"Starting cover letter generation for user: {user_id}")
         logger.info(f"Using AI provider: {self.ai_provider}")
         start_time = time.time()
         
-        # Выбираем модель и промпт
+        # Select prompt
         selected_prompt = random.choice(self.prompts)
-        logger.info(f" prompt: {selected_prompt}")
+        logger.info(f"Selected prompt: {selected_prompt}")
         
-        # Сохраняем ФИО для fallback
+        # Save name for fallback
         first_name = resume.get('first_name', '')
         last_name = resume.get('last_name', '')
         full_name = f"{first_name} {last_name}".strip()
         
         try:
-            # Подготавливаем тексты
+            # Prepare texts asynchronously
             resume_text = self._prepare_resume_text(resume)
-            vacancy_text = self._prepare_vacancy_text(vacancy)
+            vacancy_text = await self._prepare_vacancy_text(vacancy)
             
             if not resume_text:
                 logger.error("Empty resume text after preparation")
@@ -203,10 +209,10 @@ class AIService:
             
             logger.info(f"Text lengths - Resume: {len(resume_text)}, Vacancy: {len(vacancy_text)}")
             
-            # Получаем промпт из кэша
+            # Get prompt from cache
             system_prompt = self._get_prompt(selected_prompt)
             
-            # Формируем промпт для пользователя
+            # Form user prompt
             user_prompt = f"""
 ##Резюме кандидата:
 {resume_text}
@@ -215,11 +221,23 @@ class AIService:
 ##Текст вакансии:
 {vacancy_text}"""
             
-            # Генерируем письмо через провайдера
+            # Generate letter with timeout protection
             logger.info(f"Sending request to {self.ai_provider}")
-            letter = await self.provider.generate(system_prompt, user_prompt)
+            
+            try:
+                # Add overall timeout for the AI generation
+                letter = await asyncio.wait_for(
+                    self.provider.generate(system_prompt, user_prompt),
+                    timeout=self.generation_timeout
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"AI generation timed out after {self.generation_timeout} seconds")
+                # Return fallback on timeout within AI service
+                return self._get_fallback_letter(vacancy, full_name, selected_prompt)
+            
             signed_letter = f"""{letter}
-С уважением, {full_name}"""
+С уважением,
+{full_name}"""
             logger.info(f"Generated letter length: {len(signed_letter)} characters")
             
             total_duration = time.time() - start_time
@@ -228,20 +246,19 @@ class AIService:
             return {
                 "content": signed_letter,
                 "prompt_filename": selected_prompt,
-                "ai_model": 'pizda',
+                "ai_model": self.ai_provider,
                 "ai_provider": self.ai_provider,
-                "is_fallback": False  # Успешная генерация
+                "is_fallback": False
             }
             
         except Exception as e:
             logger.error(f"Error during cover letter generation: {e}", exc_info=True)
-            
-            # Возвращаем fallback письмо
+            # Return fallback on any error
             return self._get_fallback_letter(vacancy, full_name, selected_prompt)
     
     def _get_fallback_letter(self, vacancy: dict, full_name: str, 
                             prompt_filename: str) -> Dict[str, Any]:
-        """Генерация запасного письма при ошибке"""
+        """Generate fallback letter on error"""
         logger.warning("Generating fallback letter")
         
         vacancy_name = vacancy.get('name', 'вашу вакансию')
@@ -256,7 +273,7 @@ class AIService:
 Буду рад обсудить возможности сотрудничества.
 
 С уважением,
-{full_name or 'Кандидат'}"""
+{full_name}"""
         
         logger.info("Fallback letter generated")
         
@@ -265,5 +282,10 @@ class AIService:
             "prompt_filename": prompt_filename,
             "ai_model": 'fallback',
             "ai_provider": self.ai_provider,
-            "is_fallback": True  # Пометка о fallback
+            "is_fallback": True
         }
+    
+    def __del__(self):
+        """Cleanup thread pool on deletion"""
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait=False)

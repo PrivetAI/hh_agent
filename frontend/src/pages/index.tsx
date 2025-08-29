@@ -41,7 +41,7 @@ function AuthenticatedHome() {
   const {
     vacancies,
     loading,
-    generatingId,
+    generatingIds,
     generateAllLetters,
     sendApplications,
     searchVacancies,
@@ -147,7 +147,7 @@ function AuthenticatedHome() {
                 onGenerateAll={generateAllLetters}
                 onSendSelected={sendApplications}
                 loading={loading}
-                generatingId={generatingId}
+                generatingIds={generatingIds}
               />
               
               {/* Добавляем компонент пагинации */}

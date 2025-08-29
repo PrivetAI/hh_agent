@@ -234,8 +234,8 @@ function StatsCounter() {
           ...prev, 
           isLoading: false, 
           error: 'Не удалось загрузить статистику',
-          totalResponses: 12847, // fallback values
-          todayResponses: 423
+          totalResponses: 0, // fallback values
+          todayResponses: 0
         }))
       }
     }

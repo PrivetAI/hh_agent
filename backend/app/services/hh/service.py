@@ -112,33 +112,52 @@ class HHService:
         finally:
             db_gen.close()
 
+
     async def generate_cover_letter(
         self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None
     ) -> Dict[str, Any]:
-        """Generate cover letter for vacancy with pseudonymization"""
+        """Generate cover letter with proper isolation"""
+        # Create separate task for AI generation to prevent blocking
+        loop = asyncio.get_event_loop()
+
+        # Get resume and vacancy data (these are fast operations)
         resume = await self.get_user_resume(hh_user_id, resume_id)
         if not resume:
             raise HTTPException(404, "Resume not found")
 
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
-        return await self.ai_service.generate_cover_letter(resume, vacancy, user_id)
+
+        try:
+            # Create a new task for AI generation
+            generation_task = asyncio.create_task(
+                self.ai_service.generate_cover_letter(resume, vacancy, user_id)
+            )
+
+            # The timeout is handled inside ai_service, but we can add additional protection
+            result = await generation_task
+
+            return result
+
+        except asyncio.CancelledError:
+            logger.error("Cover letter generation was cancelled")
+            raise HTTPException(500, "Generation was cancelled")
+        except Exception as e:
+            logger.error(f"Error in cover letter generation: {e}")
+            raise
 
     async def get_dictionaries(self) -> Dict[str, Any]:
-        """Get HH dictionaries with caching"""
-        cached = await self.redis_service.get_json("dictionaries")
-        if cached:
-            return cached
-
-        data = await self.hh_client.get_dictionaries()
-        result = {
-            "experience": data.get("experience", []),
-            "employment": data.get("employment", []),
-            "schedule": data.get("schedule", []),
-        }
-
-        await self.redis_service.set_json("dictionaries", result, 604800)
-        return result
-
+       """Get HH dictionaries with caching"""
+       cached = await self.redis_service.get_json("dictionaries")
+       if cached:
+           return cached
+       data = await self.hh_client.get_dictionaries()
+       result = {
+           "experience": data.get("experience", []),
+           "employment": data.get("employment", []),
+           "schedule": data.get("schedule", []),
+       }
+       await self.redis_service.set_json("dictionaries", result, 604800)
+       return result
     async def get_areas(self) -> Dict[str, Any]:
         """Get areas with caching"""
         cached = await self.redis_service.get_json("areas")
