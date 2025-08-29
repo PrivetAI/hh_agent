@@ -169,3 +169,8 @@ export interface SavedSearchesResponse {
   page: number
   per_page: number
 }
+export interface CoverLetterStats {
+  total_generated: number
+  last_24h_generated: number
+  timestamp: string
+}

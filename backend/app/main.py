@@ -27,7 +27,7 @@ logger.info(f"ROBOKASSA_TEST_MODE from settings: {settings.ROBOKASSA_TEST_MODE}"
 logger.info(f"DATABASE_URL: {'SET' if settings.DATABASE_URL else 'NOT SET'}")
 logger.info("========================")
 
-from .api.v1 import auth, vacancy, payment, user, saved_searches
+from .api.v1 import auth, vacancy, payment, user, saved_searches, stats
 from .core.http_client import HTTPClient
 
 # User-Agent Middleware для всех исходящих запросов
@@ -81,6 +81,7 @@ app.include_router(vacancy.router)
 app.include_router(payment.router)
 app.include_router(user.router)
 app.include_router(saved_searches.router)
+app.include_router(stats.router)
 
 @app.get("/")
 async def root():

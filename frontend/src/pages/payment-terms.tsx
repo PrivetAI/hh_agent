@@ -12,6 +12,11 @@ export default function PaymentTerms() {
       
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
+            <div className="mt-2 mb-4 space-x-4">
+                      <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
+                        ← Вернуться на главную
+                      </Link>
+                       </div>
           <h1 className="text-3xl font-bold mb-8">Условия оказания услуг</h1>
           
           <div className="bg-white rounded-lg shadow-sm p-8 space-y-8">
@@ -154,7 +159,7 @@ export default function PaymentTerms() {
               <h2 className="text-2xl font-semibold mb-4">Ограничения сервиса</h2>
               <ul className="list-disc list-inside space-y-2 text-gray-700">
                 <li>Лимит HeadHunter: не более 200 откликов в сутки на один аккаунт</li>
-                <li>Токены не имеют срока действия</li>
+                <li>Токены не имеют срока действия, но могут быть отозваны администратором</li>
                 <li>Передача токенов между аккаунтами невозможна</li>
               </ul>
             </section>

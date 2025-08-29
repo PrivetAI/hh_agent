@@ -12,6 +12,11 @@ export default function Offerta() {
       
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
+           <div className="mt-2 mb-4 space-x-4">
+            <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
+              ← Вернуться на главную
+            </Link>
+             </div>
           <h1 className="text-3xl font-bold mb-8">Публичная оферта</h1>
           
           <div className="bg-white rounded-lg shadow-sm p-8">

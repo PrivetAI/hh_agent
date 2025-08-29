@@ -164,7 +164,7 @@ export default function ManualFilters({ onSearch, loading }: ManualFiltersProps)
           type="text"
           value={filters.excluded_text}
           onChange={e => updateFilter('excluded_text', e.target.value)}
-          placeholder="Исключить слова (через пробел)"
+          placeholder="Исключить слова"
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
         />
       </div>

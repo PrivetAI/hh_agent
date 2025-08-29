@@ -172,7 +172,7 @@ async def apply_to_vacancy(
             detail="Вы уже откликались на эту вакансию"
         )
     
-    error_message = Noneq
+    error_message = None
     vacancy_title = "Неизвестная вакансия"
 
     try:

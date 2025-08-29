@@ -11,11 +11,14 @@ import {
   Dictionaries,
   Area,
   Resume,
-  PaymentPackage
+  PaymentPackage,
+  CoverLetterStats
 } from '../types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL
 console.log('BASE_URL:', BASE_URL)
+
+
 
 class ApiService {
   private static instance: ApiService
@@ -96,6 +99,20 @@ class ApiService {
 
     this.pendingRequests.set(key, promise)
     return promise
+  }
+
+  // Stats - открытый эндпоинт
+  async getCoverLetterStats(): Promise<CoverLetterStats> {
+    return this.deduplicatedRequest(
+      'cover-letter-stats',
+      async () => {
+        // Используем axios напрямую без авторизации для открытого эндпоинта
+        const response = await axios.get(`${BASE_URL}/api/stats/cover-letters`, {
+          timeout: 10000,
+        })
+        return response.data
+      }
+    )
   }
 
   // Auth

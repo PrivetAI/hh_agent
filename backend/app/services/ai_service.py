@@ -218,14 +218,15 @@ class AIService:
             # Генерируем письмо через провайдера
             logger.info(f"Sending request to {self.ai_provider}")
             letter = await self.provider.generate(system_prompt, user_prompt)
-            
-            logger.info(f"Generated letter length: {len(letter)} characters")
+            signed_letter = f"""{letter}
+С уважением, {full_name}"""
+            logger.info(f"Generated letter length: {len(signed_letter)} characters")
             
             total_duration = time.time() - start_time
             logger.info(f"Cover letter generation completed in {total_duration:.2f} seconds")
             
             return {
-                "content": letter,
+                "content": signed_letter,
                 "prompt_filename": selected_prompt,
                 "ai_model": 'pizda',
                 "ai_provider": self.ai_provider,

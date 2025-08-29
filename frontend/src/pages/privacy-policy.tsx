@@ -12,6 +12,11 @@ export default function PrivacyPolicy() {
       
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
+            <div className="mt-2 mb-4 space-x-4">
+                      <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
+                        ← Вернуться на главную
+                      </Link>
+                       </div>
           <h1 className="text-3xl font-bold mb-8">Политика обработки персональных данных</h1>
           
           <div className="bg-white rounded-lg shadow-sm p-8 space-y-6">
@@ -153,11 +158,17 @@ export default function PrivacyPolicy() {
             </section>
           </div>
 
-          <div className="mt-8 text-center">
-            <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
-              ← Вернуться на главную
-            </Link>
-          </div>
+            <div className="mt-8 text-center space-x-4">
+                     <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
+                       ← Вернуться на главную
+                     </Link>
+                     <Link href="/offerta" className="text-[#d6001c] hover:text-[#c5001a]">
+                       Публичная оферта
+                     </Link>
+                     <Link href="/payment-terms" className="text-[#d6001c] hover:text-[#c5001a]">
+                       Условия оказания услуг
+                     </Link>
+                   </div>
         </div>
       </div>
     </>
