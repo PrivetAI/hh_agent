@@ -34,7 +34,7 @@ class OpenAIProvider:
                 resp = await client.responses.create(
                     model=model,
                     input=combined_input,
-                    reasoning={"effort": "medium"},  # For faster responses
+                    reasoning={"effort": "low"},  
                     text={"verbosity": "low"}
                 )
 

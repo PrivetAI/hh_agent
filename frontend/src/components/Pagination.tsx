@@ -66,7 +66,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, load
   }
 
   return (
-    <div className="flex justify-center items-center mt-6 gap-1">
+    <div className="flex justify-center items-center mt-6 gap-0.5">
       {/* Кнопка "Назад" */}
       <button
         onClick={() => handlePageClick(currentPage - 1)}

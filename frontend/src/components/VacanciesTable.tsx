@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { LoadingButton } from './ui/LoadingButton'
 import { Vacancy } from '../types'
+
 interface TableProps {
   vacancies: Vacancy[]
   onVacancyUpdate: (id: string, updates: Partial<Vacancy>) => void
   onGenerateAll: () => void
   onSendSelected: () => void
-  onGenerateAndSend: () => void
   loading?: string
   generatingId?: string
 }
@@ -16,7 +16,6 @@ export default function VacanciesTable({
   onVacancyUpdate,
   onGenerateAll,
   onSendSelected,
-  onGenerateAndSend,
   loading,
   generatingId
 }: TableProps) {
@@ -76,6 +75,24 @@ export default function VacanciesTable({
     if (diffDays < 7) return `${diffDays} дней назад`
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} недель назад`
     return `${Math.floor(diffDays / 30)} месяцев назад`
+  }
+
+  // Helper function to strip HTML tags and get plain text
+  const stripHtml = (html: string): string => {
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    return doc.body.textContent || ''
+  }
+
+  // Helper function to get description text (handles both HTML and plain text)
+  const getDescriptionText = (vacancy: Vacancy): string => {
+    const description = vacancy.description || vacancy.snippet?.requirement || vacancy.snippet?.responsibility || ''
+    
+    // Check if description contains HTML tags
+    if (description.includes('<') && description.includes('>')) {
+      return stripHtml(description)
+    }
+    
+    return description
   }
 
   const generateAll = () => {
@@ -168,10 +185,10 @@ export default function VacanciesTable({
 
               {vacancy.description && (
                 <p 
-                  className="text-sm text-[#666666] mb-3 line-clamp-10 cursor-pointer hover:text-[#4bb34b]"
+                  className="text-sm text-[#666666] mb-3 line-clamp-10 cursor-pointer hover:text-[#4bb34b] break-words"
                   onClick={e => openModal(vacancy, e)}
                 >
-                  {vacancy.description}
+                  {getDescriptionText(vacancy)}
                 </p>
               )}
 
@@ -231,17 +248,6 @@ export default function VacanciesTable({
               Отправить ({toSentCount})
             </LoadingButton>
           </div>
-          <LoadingButton
-            onClick={onGenerateAndSend}
-            loading={isGeneratingAndSending}
-            disabled={isGeneratingAndSending || isGeneratingState || isSending || selectedNotSended === 0}
-            className="hh-btn hh-btn-warning text-xs w-full"
-          >
-            {isGeneratingAndSending 
-              ? (loading === 'generate-and-send' ? 'Создание откликов...' : 'Отправка откликов...') 
-              : `Создать и отправить (${selectedNotSended})`
-            }
-          </LoadingButton>
         </div>
 
         {modalVacancy && (
@@ -299,22 +305,11 @@ export default function VacanciesTable({
             >
               Отправить ({toSentCount})
             </LoadingButton>
-            <LoadingButton
-              onClick={onGenerateAndSend}
-              loading={isGeneratingAndSending}
-              disabled={isGeneratingAndSending || isGeneratingState || isSending || selectedNotSended === 0}
-              className="hh-btn hh-btn-warning text-sm"
-            >
-              {isGeneratingAndSending 
-                ? (loading === 'generate-and-send' ? 'Создание...' : 'Отправка...') 
-                : `Создать и отправить (${selectedNotSended})`
-              }
-            </LoadingButton>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead className="bg-[#f4f4f5] text-sm">
               <tr>
                 <th className="p-3 text-left w-10">
@@ -325,9 +320,9 @@ export default function VacanciesTable({
                     className="hh-checkbox"
                   />
                 </th>
-                <th className="p-3 text-left min-w-[250px]">Вакансия</th>
-                <th className="p-3 text-left min-w-[300px]">Описание</th>
-                <th className="p-3 text-left min-w-[350px]">AI отклик</th>
+                <th className="p-3 text-left w-1/4">Вакансия</th>
+                <th className="p-3 text-left w-1/2">Описание</th>
+                <th className="p-3 text-left w-1/3">AI отклик</th>
               </tr>
             </thead>
             <tbody>
@@ -341,7 +336,7 @@ export default function VacanciesTable({
                       className="hh-checkbox"
                     />
                   </td>
-                  <td className="p-3 align-top text-left min-w-[250px]">
+                  <td className="p-3 align-top text-left">
                     <div className="space-y-1">
                       <a
                         href={`https://hh.ru/vacancy/${vacancy.id}`}
@@ -368,15 +363,15 @@ export default function VacanciesTable({
                       )}
                     </div>
                   </td>
-                  <td className="p-3 align-top text-left min-w-[300px]">
+                  <td className="p-3 align-top text-left">
                     <p 
-                      className="text-sm text-[#666666] line-clamp-10 cursor-pointer hover:text-[#4bb34b]"
+                      className="text-sm text-[#666666] line-clamp-10 cursor-pointer hover:text-[#4bb34b] break-words overflow-hidden"
                       onClick={e => openModal(vacancy, e)}
                     >
-                      {vacancy.description || vacancy.snippet?.requirement || vacancy.snippet?.responsibility || ''}
+                      {getDescriptionText(vacancy)}
                     </p>
                   </td>
-                  <td className="p-3 align-top text-left min-w-[300px]">
+                  <td className="p-3 align-top text-left">
                     {generatingId === vacancy.id ? (
                       <div className="flex justify-center items-center h-[240px] bg-[#f4f4f5] rounded">
                         <span className="area-loader" />
@@ -386,7 +381,7 @@ export default function VacanciesTable({
                         value={vacancy.aiLetter || ''}
                         onChange={e => onVacancyUpdate(vacancy.id, { aiLetter: e.target.value })}
                         placeholder="AI отклик появится здесь..."
-                        className="hh-input text-sm resize-none"
+                        className="hh-input text-sm resize-none w-full"
                         rows={10}
                       />
                     )}

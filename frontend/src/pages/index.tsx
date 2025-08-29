@@ -45,7 +45,6 @@ function AuthenticatedHome() {
     generateAllLetters,
     sendApplications,
     searchVacancies,
-    generateAndSendSelected,
     updateVacancy,
     paginationMeta
   } = useVacancies(selectedResumeId, refreshCredits)
@@ -147,7 +146,6 @@ function AuthenticatedHome() {
                 onVacancyUpdate={updateVacancy}
                 onGenerateAll={generateAllLetters}
                 onSendSelected={sendApplications}
-                onGenerateAndSend={generateAndSendSelected}
                 loading={loading}
                 generatingId={generatingId}
               />
