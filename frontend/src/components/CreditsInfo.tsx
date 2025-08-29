@@ -228,7 +228,7 @@ export const CreditsInfo = ({
             </div>
 
             <div className="hidden md:block">
-                <div className="grid grid-cols-3 gap-4 mb-5">
+                <div className="grid grid-cols-4 gap-4 mb-5">
                     {packages.map(pkg => {
                         const pricePerToken = (pkg.amount / pkg.credits).toFixed(1)
                         const isSelected = selectedPackageId === pkg.id

@@ -4,30 +4,30 @@ import Link from 'next/link'
 export default function PaymentTerms() {
   return (
     <>
-      <SEOHead 
+      <SEOHead
         title="Условия оплаты и доставки - HH Agent"
         description="Правила оказания услуг, условия оплаты и возврата средств сервиса HH Agent"
         noindex={true}
       />
-      
+
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
-            <div className="mt-2 mb-4 space-x-4">
-                      <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
-                        ← Вернуться на главную
-                      </Link>
-                       </div>
+          <div className="mt-2 mb-4 space-x-4">
+            <Link href="/" className="text-[#d6001c] hover:text-[#c5001a]">
+              ← Вернуться на главную
+            </Link>
+          </div>
           <h1 className="text-3xl font-bold mb-8">Условия оказания услуг</h1>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-8 space-y-8">
             <section>
               <h2 className="text-2xl font-semibold mb-4">Описание услуги</h2>
               <div className="space-y-4 text-gray-700">
                 <p>
-                  <strong>HH Agent</strong> — это информационно-консультационный сервис для автоматизации 
+                  <strong>HH Agent</strong> — это информационно-консультационный сервис для автоматизации
                   поиска работы на платформе HeadHunter (hh.ru).
                 </p>
-                
+
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Основные функции:</h3>
                   <ul className="list-disc list-inside space-y-2 ml-4">
@@ -51,19 +51,24 @@ export default function PaymentTerms() {
                       </thead>
                       <tbody>
                         <tr className="border-b">
-                          <td className="py-2">Стартовый</td>
+                          <td className="py-2">Мини</td>
                           <td className="py-2">50 токенов</td>
-                          <td className="py-2">149 ₽</td>
+                          <td className="py-2">199 ₽</td>
                         </tr>
                         <tr className="border-b">
-                          <td className="py-2">Оптимальный</td>
+                          <td className="py-2">Стандарт</td>
                           <td className="py-2">100 токенов</td>
-                          <td className="py-2">249 ₽</td>
+                          <td className="py-2">299 ₽</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-2">Профи</td>
+                          <td className="py-2">200 токенов</td>
+                          <td className="py-2">499 ₽</td>
                         </tr>
                         <tr>
-                          <td className="py-2">Профессиональный</td>
-                          <td className="py-2">200 токенов</td>
-                          <td className="py-2">399 ₽</td>
+                          <td className="py-2">Премиум</td>
+                          <td className="py-2">500 токенов</td>
+                          <td className="py-2">999 ₽</td>
                         </tr>
                       </tbody>
                     </table>
@@ -114,7 +119,7 @@ export default function PaymentTerms() {
                   <li>Система быстрых платежей (СБП)</li>
                   <li>Банковские карты (Visa, Mastercard, МИР)</li>
                 </ul>
-                
+
                 <p><strong>Порядок оплаты:</strong></p>
                 <ol className="list-decimal list-inside ml-4 space-y-2">
                   <li>Выберите пакет токенов в личном кабинете</li>
@@ -122,9 +127,9 @@ export default function PaymentTerms() {
                   <li>Вы будете перенаправлены на защищенную страницу оплаты</li>
                   <li>После успешной оплаты токены автоматически зачисляются на баланс</li>
                 </ol>
-                
+
                 <p className="mt-3">
-                  <strong>Безопасность платежей:</strong> Все платежи обрабатываются через защищенное 
+                  <strong>Безопасность платежей:</strong> Все платежи обрабатываются через защищенное
                   соединение. Мы не храним данные банковских карт.
                 </p>
               </div>
@@ -134,17 +139,17 @@ export default function PaymentTerms() {
               <h2 className="text-2xl font-semibold mb-4">Правила возврата</h2>
               <div className="space-y-3 text-gray-700">
                 <p>
-                  В соответствии с Законом РФ "О защите прав потребителей", вы имеете право на возврат 
+                  В соответствии с Законом РФ "О защите прав потребителей", вы имеете право на возврат
                   средств за неиспользованные услуги.
                 </p>
-                
+
                 <p><strong>Условия возврата:</strong></p>
                 <ul className="list-disc list-inside ml-4 space-y-2">
                   <li>Возврат возможен за неиспользованные токены</li>
                   <li>Заявка на возврат подается в течение 14 дней с момента покупки</li>
                   <li>Использованные токены возврату не подлежат</li>
                 </ul>
-                
+
                 <p><strong>Процедура возврата:</strong></p>
                 <ol className="list-decimal list-inside ml-4 space-y-2">
                   <li>Направьте заявление на email: eliseenko1viktor@gmail.com</li>
