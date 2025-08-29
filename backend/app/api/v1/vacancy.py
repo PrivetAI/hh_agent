@@ -110,7 +110,7 @@ async def generate_letter(
     user: User = Depends(check_user_credits),
     db: Session = Depends(get_db)
 ):
-    """Generate cover letter for vacancy (costs 1 credit)"""
+    """Generate cover letter for vacancy (costs 1 credit only for successful generation)"""
     logger.info(f"Generating letter for vacancy {vacancy_id}, user {user.hh_user_id}")
     
     try:
@@ -126,17 +126,20 @@ async def generate_letter(
             str(user.id)  # Передаем user_id для псевдонимизации
         )
         
-        # Списываем кредит за генерацию
-        success = UserCRUD.decrement_credits(db, user.id)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Failed to deduct credits"
-            )
+        # Check if it's a fallback letter - don't charge credits for fallback
+        if result.get("is_fallback", False):
+            logger.warning(f"Fallback letter generated for user {user.id} - credits not deducted")
+        else:
+            # Списываем кредит только за успешную генерацию
+            success = UserCRUD.decrement_credits(db, user.id)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail="Failed to deduct credits"
+                )
+            logger.info(f"Successfully generated letter and deducted 1 credit from user {user.id}")
         
-        logger.info(f"Successfully generated letter and deducted 1 credit from user {user.id}")
-        
-        # Возвращаем полную информацию клиенту
+        # Возвращаем полную информацию клиенту (без is_fallback флага)
         return CoverLetter(
             content=result["content"],
             prompt_filename=result["prompt_filename"],
@@ -151,7 +154,6 @@ async def generate_letter(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-
 
 @router.post("/vacancy/{vacancy_id}/apply")
 async def apply_to_vacancy(
@@ -170,7 +172,7 @@ async def apply_to_vacancy(
             detail="Вы уже откликались на эту вакансию"
         )
     
-    error_message = None
+    error_message = Noneq
     vacancy_title = "Неизвестная вакансия"
 
     try:

@@ -31,7 +31,6 @@ class RobokassaService:
     def _generate_signature(self, *args) -> str:
         """Генерация MD5 подписи"""
         signature_string = ":".join(str(arg) for arg in args if arg is not None)
-        logger.debug(f"Строка для подписи: {signature_string}")
         return hashlib.md5(signature_string.encode("utf-8")).hexdigest()
 
     def _format_amount(self, amount: float) -> str:
