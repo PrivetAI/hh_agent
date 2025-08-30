@@ -17,10 +17,10 @@ class HTTPClient:
         if cls._instance is None:
             cls._instance = httpx.AsyncClient(
                 timeout=httpx.Timeout(
-                    connect=10.0,  # Reduced from 60
-                    read=30.0,     # Reduced from 60
-                    write=10.0,    # Reduced from 60
-                    pool=30.0      # Reduced from 60
+                    connect=60.0,  
+                    read=60.0,     
+                    write=60.0,    
+                    pool=60.0      
                 ),
                 headers={
                     "User-Agent": f"{settings.HH_APP_NAME}/1.0 ({settings.HH_CONTACT_EMAIL})",
@@ -30,7 +30,7 @@ class HTTPClient:
                 limits=httpx.Limits(
                     max_keepalive_connections=50,
                     max_connections=100,
-                    keepalive_expiry=30  # Close idle connections after 30s
+                    keepalive_expiry=60  # Close idle connections after 30s
                 )
             )
             logger.info("Main HTTP client initialized")
@@ -42,7 +42,7 @@ class HTTPClient:
         if cls._ai_client is None:
             cls._ai_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(
-                    connect=10.0,
+                    connect=60.0,
                     read=120.0,    # Longer timeout for AI requests
                     write=10.0,
                     pool=120.0

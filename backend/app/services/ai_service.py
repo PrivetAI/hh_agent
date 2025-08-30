@@ -216,7 +216,6 @@ class AIService:
             user_prompt = f"""
 ##Резюме кандидата:
 {resume_text}
-##Имя кандидата {full_name}
    
 ##Текст вакансии:
 {vacancy_text}"""
@@ -236,6 +235,7 @@ class AIService:
                 return self._get_fallback_letter(vacancy, full_name, selected_prompt)
             
             signed_letter = f"""{letter}
+
 С уважением,
 {full_name}"""
             logger.info(f"Generated letter length: {len(signed_letter)} characters")
@@ -246,7 +246,7 @@ class AIService:
             return {
                 "content": signed_letter,
                 "prompt_filename": selected_prompt,
-                "ai_model": self.ai_provider,
+                "ai_model": 'secret1',
                 "ai_provider": self.ai_provider,
                 "is_fallback": False
             }
