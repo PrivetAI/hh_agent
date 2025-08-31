@@ -20,7 +20,7 @@ class OpenAIProvider:
         self.timeout = 120  # Maximum time for AI request
         logger.info("OpenAIProvider initialized (key length=%d)", len(api_key))
 
-    async def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-5-nano") -> str:
+    async def generate(self, system_prompt: str, user_prompt: str, model: str = "gpt-5") -> str:
         """
         Call Responses API with timeout protection
         """

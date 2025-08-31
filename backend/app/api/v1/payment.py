@@ -259,7 +259,7 @@ async def get_packages():
         {"id": "50", "credits": 50, "amount": 199, "currency": "RUB", "popular": False},
         {"id": "100", "credits": 100, "amount": 299, "currency": "RUB", "popular": False},
         {"id": "200", "credits": 200, "amount": 499, "currency": "RUB", "popular": True},
-        {"id": "1000", "credits": 500, "amount": 999, "currency": "RUB", "popular": True}
+        {"id": "500", "credits": 500, "amount": 999, "currency": "RUB", "popular": True}
     ]
     logger.info(f"Returning {len(packages)} available packages")
     return packages

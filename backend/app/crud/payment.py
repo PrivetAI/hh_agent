@@ -17,7 +17,7 @@ class PaymentCRUD:
         "50": {"credits": 50, "amount": Decimal("199")},
         "100": {"credits": 100, "amount": Decimal("299")},
         "200": {"credits": 200, "amount": Decimal("499")},
-        "1000": { "credits": 500,  "amount": Decimal("999")},
+        "500": { "credits": 500,  "amount": Decimal("999")},
 
     }
     
