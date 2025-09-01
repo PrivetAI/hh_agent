@@ -20,7 +20,6 @@ class User(Base):
     
     # Relationships
     payments = relationship("Payment", back_populates="user")
-    letter_generations = relationship("LetterGeneration", back_populates="user")
     applications = relationship("Application", back_populates="user")
     mapping_sessions = relationship("MappingSession", back_populates="user")
 
@@ -37,23 +36,6 @@ class Payment(Base):
     
     # Relationships
     user = relationship("User", back_populates="payments")
-    
-class LetterGeneration(Base):
-    __tablename__ = "letter_generations"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    vacancy_id = Column(String, nullable=False)
-    vacancy_title = Column(String, nullable=False)
-    resume_id = Column(String)
-    letter_content = Column(Text, nullable=False)
-    prompt_filename = Column(String)  # Какой промпт использовался
-    ai_model = Column(String)  # Какая модель использовалась
-    created_at = Column(DateTime, server_default=func.now())
-    
-    # Relationships
-    user = relationship("User", back_populates="letter_generations")
-
 
 class Vacancy(Base):
     __tablename__ = "vacancies"
@@ -86,8 +68,11 @@ class Application(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     vacancy_id = Column(String, ForeignKey("vacancies.id"), nullable=False)
+    vacancy_title = Column(String)  # NEW: для истории
     resume_id = Column(String)
-    message = Column(Text, nullable=False)
+    message = Column(Text, nullable=False)  # Текст письма
+    status = Column(String, nullable=False, default="pending")  # NEW: pending, success, failed
+    error_message = Column(Text)  # NEW: для хранения ошибок
     prompt_filename = Column(String)  # Какой промпт использовался для генерации
     ai_model = Column(String)  # Какая модель использовалась
     created_at = Column(DateTime, server_default=func.now())

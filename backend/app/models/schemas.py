@@ -35,25 +35,11 @@ class PaymentCallback(BaseModel):
     status: str
 
 class Payment(BaseModel):
-    id: int  # Изменено с UUID на int
+    id: int
     amount: float
     credits: int
     status: str
     payment_id: Optional[str]
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-# Letter generation schemas
-class LetterGeneration(BaseModel):
-    id: UUID
-    vacancy_id: str
-    vacancy_title: str
-    resume_id: Optional[str]
-    letter_content: str
-    prompt_filename: str
-    ai_model: str
     created_at: datetime
     
     class Config:
@@ -65,7 +51,7 @@ class AuthResponse(BaseModel):
     refresh_token: Optional[str] = None
     user: User
 
-# Resume schemas - ИСПРАВЛЕНО: убрано full_text
+# Resume schemas
 class ResumeResponse(BaseModel):
     id: str
     first_name: str
@@ -129,8 +115,27 @@ class Application(BaseModel):
     id: UUID
     user_id: UUID
     vacancy_id: str
+    vacancy_title: Optional[str]
     resume_id: str
     message: str
+    status: str
+    error_message: Optional[str]
+    prompt_filename: Optional[str]
+    ai_model: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ApplicationHistory(BaseModel):
+    """Schema for application history display"""
+    id: UUID
+    vacancy_id: str
+    vacancy_title: Optional[str]
+    resume_id: str
+    letter_content: str
+    status: str
+    error_message: Optional[str]
     prompt_filename: Optional[str]
     ai_model: Optional[str]
     created_at: datetime

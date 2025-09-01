@@ -5,7 +5,7 @@ from uuid import UUID
 from decimal import Decimal
 import logging
 
-from ..models.db import Payment, LetterGeneration
+from ..models.db import Payment
 from ..models.schemas import PaymentCreate
 from ..services.payment.receipt_generator import ReceiptGenerator
 
@@ -17,8 +17,7 @@ class PaymentCRUD:
         "50": {"credits": 50, "amount": Decimal("199")},
         "100": {"credits": 100, "amount": Decimal("299")},
         "200": {"credits": 200, "amount": Decimal("499")},
-        "500": { "credits": 500,  "amount": Decimal("999")},
-
+        "500": {"credits": 500, "amount": Decimal("999")},
     }
     
     @staticmethod
@@ -87,37 +86,3 @@ class PaymentCRUD:
         return db.query(Payment).filter(
             Payment.user_id == user_id
         ).order_by(Payment.created_at.desc()).all()
-
-class LetterGenerationCRUD:
-    @staticmethod
-    def save_letter_generation(
-        db: Session, 
-        user_id: UUID, 
-        vacancy_id: str, 
-        vacancy_title: str,
-        resume_id: str, 
-        letter_content: str,
-        prompt_filename: Optional[str] = None,
-        ai_model: Optional[str] = None
-    ) -> LetterGeneration:
-        """Save generated letter to history"""
-        generation = LetterGeneration(
-            user_id=user_id,
-            vacancy_id=vacancy_id,
-            vacancy_title=vacancy_title,
-            resume_id=resume_id,
-            letter_content=letter_content,
-            prompt_filename=prompt_filename,
-            ai_model=ai_model
-        )
-        db.add(generation)
-        db.commit()
-        db.refresh(generation)
-        return generation
-    
-    @staticmethod
-    def get_user_history(db: Session, user_id: UUID, limit: int = 50) -> List[LetterGeneration]:
-        """Get user's letter generation history"""
-        return db.query(LetterGeneration).filter(
-            LetterGeneration.user_id == user_id
-        ).order_by(LetterGeneration.created_at.desc()).limit(limit).all()

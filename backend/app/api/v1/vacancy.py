@@ -5,7 +5,6 @@ from pydantic import BaseModel
 import asyncio
 from ...api.deps import get_current_user, check_user_credits, get_db
 from ...crud.user import UserCRUD
-from ...crud.payment import LetterGenerationCRUD
 from ...crud.application import ApplicationCRUD
 
 from ...models.db import User
@@ -186,7 +185,6 @@ async def apply_to_vacancy(
             detail="Вы уже откликались на эту вакансию"
         )
     
-    error_message = None
     vacancy_title = "Неизвестная вакансия"
 
     try:
@@ -215,58 +213,51 @@ async def apply_to_vacancy(
             db,
             user_id=user.id,
             vacancy_id=vacancy_id,
+            vacancy_title=vacancy_title,
             resume_id=application_data.resume_id,
             message=application_data.message,
+            status="success",
             prompt_filename=application_data.prompt_filename,
             ai_model=application_data.ai_model
         )
-        
-        # Сохраняем в историю отправленных писем (только после успешной отправки)
-        if application_data.prompt_filename and application_data.ai_model:
-            LetterGenerationCRUD.save_letter_generation(
-                db=db,
-                user_id=user.id,
-                vacancy_id=vacancy_id,
-                vacancy_title=vacancy_title,
-                resume_id=application_data.resume_id,
-                letter_content=application_data.message,
-                prompt_filename=application_data.prompt_filename,
-                ai_model=application_data.ai_model
-            )
         
         logger.info(f"Application sent successfully for user {user.id} to vacancy {vacancy_id}")
         
         return {"status": "success", "message": "Отклик успешно отправлен"}
         
     except HTTPException as http_exc:
-        # При ошибке НЕ сохраняем в историю писем, только в applications
+        # При ошибке сохраняем в БД с информацией об ошибке
         error_message = f"HTTP Error: {http_exc.detail}"
         logger.error(f"HTTP error applying to vacancy: {error_message}")
         
-        # Сохраняем в БД applications с информацией об ошибке
         ApplicationCRUD.create(
             db,
             user_id=user.id,
             vacancy_id=vacancy_id,
+            vacancy_title=vacancy_title,
             resume_id=application_data.resume_id,
-            message=error_message,
+            message=application_data.message,
+            status="failed",
+            error_message=error_message,
             prompt_filename=application_data.prompt_filename,
             ai_model=application_data.ai_model
         )
         
         raise http_exc
     except Exception as e:
-        # При ошибке НЕ сохраняем в историю писем
+        # При ошибке сохраняем в БД с информацией об ошибке
         error_message = f"General Error: {str(e)}"
         logger.error(f"Error applying to vacancy: {error_message}")
         
-        # Сохраняем в БД applications с информацией об ошибке
         ApplicationCRUD.create(
             db,
             user_id=user.id,
             vacancy_id=vacancy_id,
+            vacancy_title=vacancy_title,
             resume_id=application_data.resume_id,
-            message=error_message,
+            message=application_data.message,
+            status="failed",
+            error_message=error_message,
             prompt_filename=application_data.prompt_filename,
             ai_model=application_data.ai_model
         )
@@ -275,12 +266,3 @@ async def apply_to_vacancy(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Ошибка при отправке отклика: {str(e)}"
         )
-    
-
-@router.get("/history")
-async def get_history(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
-):
-    """Get user's sent letters history"""
-    history = LetterGenerationCRUD.get_user_history(db, user.id)
-    return history
