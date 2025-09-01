@@ -107,7 +107,7 @@ class ApiService {
       'cover-letter-stats',
       async () => {
         // Используем axios напрямую без авторизации для открытого эндпоинта
-        const response = await axios.get(`${BASE_URL}/api/stats/cover-letters`, {
+        const response = await axios.get(`/api/stats/cover-letters`, {
           timeout: 10000,
         })
         return response.data
