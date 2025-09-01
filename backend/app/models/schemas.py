@@ -65,7 +65,7 @@ class AuthResponse(BaseModel):
     refresh_token: Optional[str] = None
     user: User
 
-# Resume schemas
+# Resume schemas - ИСПРАВЛЕНО: убрано full_text
 class ResumeResponse(BaseModel):
     id: str
     first_name: str
@@ -137,6 +137,60 @@ class Application(BaseModel):
     
     class Config:
         from_attributes = True
+
+# Pseudonymization schemas
+class MappingBase(BaseModel):
+    original_value: str
+    pseudonym: str
+    data_type: str  # 'name', 'email', 'phone', 'company', etc
+
+class MappingCreate(MappingBase):
+    session_id: UUID
+
+class Mapping(MappingBase):
+    id: UUID
+    session_id: UUID
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class MappingSessionBase(BaseModel):
+    pass
+
+class MappingSessionCreate(MappingSessionBase):
+    user_id: UUID
+
+class MappingSession(MappingSessionBase):
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    expires_at: datetime
+    mappings: Optional[List[Mapping]] = None
+    
+    class Config:
+        from_attributes = True
+
+# Pseudonymization request/response schemas
+class PseudonymizationRequest(BaseModel):
+    text: str
+    session_id: Optional[UUID] = None  # Если None, создается новая сессия
+    data_types: Optional[List[str]] = None  # Какие типы данных псевдонимизировать
+
+class PseudonymizationResponse(BaseModel):
+    pseudonymized_text: str
+    session_id: UUID
+    mappings_created: int
+    expires_at: datetime
+
+class DePseudonymizationRequest(BaseModel):
+    text: str
+    session_id: UUID
+
+class DePseudonymizationResponse(BaseModel):
+    original_text: str
+    session_id: UUID
+    mappings_found: int
     
 class SavedSearchItem(BaseModel):
     id: str
