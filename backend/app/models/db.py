@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, Numeric, UUID, ForeignKey, Text, JSON, text
+from sqlalchemy import Column, String, Integer, DateTime, Numeric, UUID, ForeignKey, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -22,7 +22,6 @@ class User(Base):
     payments = relationship("Payment", back_populates="user")
     letter_generations = relationship("LetterGeneration", back_populates="user")
     applications = relationship("Application", back_populates="user")
-    mapping_sessions = relationship("MappingSession", back_populates="user")
 
 class Payment(Base):
     __tablename__ = "payments"
@@ -95,32 +94,3 @@ class Application(Base):
     # Relationships
     user = relationship("User", back_populates="applications")
     vacancy = relationship("Vacancy", back_populates="applications")
-
-# Simplified Pseudonymization models
-class MappingSession(Base):
-    __tablename__ = "mapping_sessions"
-    __table_args__ = {'schema': 'pseudonymization'}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
-    # FIX: Use text() for raw SQL expression
-    expires_at = Column(DateTime, server_default=text("now() + interval '7 days'"))
-    
-    # Relationships
-    user = relationship("User", back_populates="mapping_sessions")
-    mappings = relationship("Mapping", back_populates="session", cascade="all, delete-orphan")
-
-class Mapping(Base):
-    __tablename__ = "mappings"
-    __table_args__ = {'schema': 'pseudonymization'}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("pseudonymization.mapping_sessions.id", ondelete="CASCADE"), nullable=False)
-    original_value = Column(Text, nullable=True)
-    pseudonym = Column(Text, nullable=False)
-    data_type = Column(String(50), nullable=False)  # 'company', 'education'
-    created_at = Column(DateTime, server_default=func.now())
-    
-    # Relationships
-    session = relationship("MappingSession", back_populates="mappings")
