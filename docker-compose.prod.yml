@@ -14,6 +14,11 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hhuser} -d ${POSTGRES_DB:-hhapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     logging:
       driver: "json-file"
       options:
