@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, DDL
 from sqlalchemy.orm import sessionmaker
 
 from ..core.config import settings
@@ -15,5 +15,19 @@ def get_db():
 
 # Create all tables
 def create_tables():
-    from ..models.db import Base
+    from ..models.db import Base, MappingSession
+    
+    # Add event listener to create schema before creating tables
+    event.listen(
+        MappingSession.__table__,
+        'before_create',
+        DDL('CREATE SCHEMA IF NOT EXISTS pseudonymization'),
+        once=True
+    )
+    
+    # Create uuid extension
+    with engine.begin() as conn:
+        conn.execute(DDL('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+    
+    # Now create all tables
     Base.metadata.create_all(bind=engine)
