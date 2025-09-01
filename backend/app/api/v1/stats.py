@@ -12,16 +12,13 @@ async def get_cover_letter_stats(db: Session = Depends(get_db)):
     """Get cover letter generation statistics from applications"""
     
     # Общее количество успешных откликов за все время
-    total_count = db.query(func.count(Application.id)).filter(
-        Application.status == "success"
-    ).scalar() or 0
+    total_count = db.query(func.count(Application.id)).scalar() or 0
     
     # Количество успешных откликов за последние 24 часа
     twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
     last_24h_count = db.query(func.count(Application.id)).filter(
         and_(
             Application.created_at >= twenty_four_hours_ago,
-            Application.status == "success"
         )
     ).scalar() or 0
     
