@@ -33,7 +33,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 CMD exec gunicorn app.main:app \
      -k uvicorn.workers.UvicornWorker \
      --bind 0.0.0.0:8000 \
-     --workers 4 \
+     --workers 2 \
+     --max-requests 1000 \
+     --max-requests-jitter 200 \
      --log-level info \
      --access-logfile - \
      --capture-output \
