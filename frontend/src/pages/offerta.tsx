@@ -1,4 +1,4 @@
-import SEOHead from '../components/Head'
+import SEOHead from '../components/landingComponents/Head'
 import Link from 'next/link'
 
 export default function Offerta() {

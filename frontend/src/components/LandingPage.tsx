@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-import SEOHead from './Head'
-import Footer from './Footer'
+import SEOHead from './landingComponents/Head'
+import Footer from './landingComponents/Footer'
 import ApiService from '../services/apiService'
+import VideoDemoSection from './landingComponents/VideoDemoSection'
 
 interface CTASectionProps {
   onLogin: () => Promise<void>
@@ -154,7 +155,8 @@ function FAQAccordion({ items }: { items: { question: string; answer: string }[]
 const PAIN_POINTS = [
   { icon: '😫', title: '60+ минут на каждые 10 откликов', description: 'Время, которое можно потратить на подготовку к собеседованиям' },
   { icon: '📝', title: 'Шаблонные письма = мало приглашений', description: 'HR-менеджеры сразу видят копипаст и игнорируют такие заявки' },
-  { icon: '💸', title: 'Упущенные возможности', description: 'Идеальные вакансии проходят мимо из-за слабых откликов' }
+  { icon: '💸', title: 'Упущенные возможности', description: 'Идеальные вакансии проходят мимо из-за слабых откликов' },
+  { icon: '✨', title: 'AI пишет лучше человека', description: 'Анализирует резюме и вакансию, создавая уникальное письмо, которое выделяет вас.' }
 ]
 
 const PROCESS_STEPS = [
@@ -163,11 +165,6 @@ const PROCESS_STEPS = [
   { icon: '📨', step: 'Шаг 3', title: 'Отправляете отклик', description: 'Редактируете письмо по желанию и отправляете. Получаете в 3 раза больше ответов от работодателей' }
 ]
 
-const TESTIMONIALS = [
-  { role: '👨‍💻 Разработчики', text: 'Раньше тратил 2 часа на отклики, теперь 10 минут. Количество собеседований увеличилось вдвое!' },
-  { role: '📊 Маркетологи', text: 'AI понимает специфику маркетинга лучше, чем я ожидала. Письма получаются очень точными!' },
-  { role: '💼 Менеджеры', text: 'Наконец-то могу сосредоточиться на подготовке к собеседованиям, а не на написании писем.' }
-]
 
 const FAQ_ITEMS = [
   { question: 'Как работает AI-генерация писем?', answer: 'AI анализирует каждую вакансию индивидуально и создает уникальное письмо, подчеркивающие именно те навыки и опыт, которые ищет работодатель. Результат: увеличение откликов в 3 раза по сравнению с шаблонными письмами.' },
@@ -341,20 +338,12 @@ export default function LandingPage() {
             </div>
           </section>
 
-          <section className="container mx-auto px-4 pb-8 sm:pb-12" aria-labelledby="demo-section">
-            <div className="text-center mb-10">
-            <h2 id="demo-section" className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Демонстрация работы <br/> HH Agent</h2>
-            </div>
-            <div className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden max-w-5xl mx-auto">
-              
-              <img src="/image.png" alt="Демонстрация интерфейса HH Agent - создание персонализированных сопроводительных писем" className="w-full h-auto" width="1200" height="800" loading="lazy" />
-            </div>
-          </section>
+          <VideoDemoSection/>
 
           {/* Pain Points Section */}
           <section className="bg-gradient-to-br from-gray-100 to-gray-50 py-12 sm:py-16">
             <div className="container mx-auto px-4">
-              <div className="max-w-4xl mx-auto text-center">
+              <div className="max-w-6xl mx-auto text-center">
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
                   Устали тратить часы на написание писем?
                 </h2>
@@ -362,12 +351,12 @@ export default function LandingPage() {
                   Каждый день сотни специалистов теряют время на создание сопроводительных писем, получая минимум откликов от работодателей
                 </p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {PAIN_POINTS.map((point, index) => (
-                    <div key={index} className="bg-white rounded-xl p-6 shadow-lg">
+                    <div key={index} className="bg-white rounded-xl p-6 shadow-lg h-full flex flex-col">
                       <div className="text-4xl mb-4">{point.icon}</div>
                       <h3 className="font-bold text-gray-900 mb-2">{point.title}</h3>
-                      <p className="text-sm text-gray-600">{point.description}</p>
+                      <p className="text-sm text-gray-600 flex-grow">{point.description}</p>
                     </div>
                   ))}
                 </div>
@@ -412,24 +401,6 @@ export default function LandingPage() {
                 Часто задаваемые вопросы
               </h2>
               <FAQAccordion items={FAQ_ITEMS} />
-            </div>
-          </section>
-
-          {/* Testimonials */}
-          <section className="bg-white py-12 sm:py-16">
-            <div className="container mx-auto px-4">
-              <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-10">
-                Присоединяйтесь к успешным соискателям
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {TESTIMONIALS.map((testimonial, index) => (
-                  <div key={index} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 shadow-lg border border-gray-100">
-                    <div className="text-lg font-bold text-gray-900 mb-3">{testimonial.role}</div>
-                    <p className="text-gray-600 italic">"{testimonial.text}"</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </section>
 
