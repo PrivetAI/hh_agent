@@ -198,6 +198,7 @@ class AIService:
             # Prepare texts asynchronously
             resume_text = self._prepare_resume_text(resume)
             vacancy_text = await self._prepare_vacancy_text(vacancy)
+            vacancy_title = vacancy.get('name', '')
             
             if not resume_text:
                 logger.error("Empty resume text after preparation")
@@ -206,7 +207,6 @@ class AIService:
             if not vacancy_text:
                 logger.error("Empty vacancy text after preparation")
                 return self._get_fallback_letter(vacancy, full_name, selected_prompt)
-            
             logger.info(f"Text lengths - Resume: {len(resume_text)}, Vacancy: {len(vacancy_text)}")
             
             # Get prompt from cache
@@ -216,7 +216,8 @@ class AIService:
             user_prompt = f"""
 ##Резюме кандидата:
 {resume_text}
-   
+##Позиция
+{vacancy_title}
 ##Текст вакансии:
 {vacancy_text}"""
             

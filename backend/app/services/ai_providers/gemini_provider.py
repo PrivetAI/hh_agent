@@ -46,8 +46,8 @@ class GeminiProvider:
             gemini_model = genai.GenerativeModel(
                 model_name=self.model,
                 generation_config={
-                    "temperature": 1.1,
-                    "top_p": 0.7,
+                    "temperature": 0.9,
+                    "top_p": 0.8,
                     "max_output_tokens": 10000,
                 },
                 safety_settings=safety_settings
