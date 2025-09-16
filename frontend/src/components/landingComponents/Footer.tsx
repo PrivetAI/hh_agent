@@ -20,7 +20,7 @@ export default function Footer() {
             <h3 className="font-semibold text-gray-900 mb-3">Контакты</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <p>ИНН: 231136137506</p>
-              <p>Email: <a href="mailto:eliseenko1viktor@gmail.com" className="text-[#d6001c] hover:text-[#c5001a]">eliseenko1viktor@gmail.com</a></p>
+              {/* <p>Email: <a href="mailto:eliseenko1viktor@gmail.com" className="text-[#d6001c] hover:text-[#c5001a]">eliseenko1viktor@gmail.com</a></p> */}
             </div>
           </div>
           

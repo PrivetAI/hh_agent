@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Select from 'react-select'
 import ApiService from '../services/apiService' // Import the real API service
+import SearchHint from './ui/SearchHint'
 
 interface ManualFiltersProps {
   onSearch: (params: any) => void
@@ -148,14 +149,20 @@ export default function ManualFilters({ onSearch, loading }: ManualFiltersProps)
   return (
     <>
       {/* Keywords */}
-      <div className="mb-4">
-        <input
-          type="text"
-          value={filters.text}
-          onChange={e => updateFilter('text', e.target.value)}
-          placeholder="Ключевые слова"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-        />
+       <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={filters.text}
+            onChange={e => updateFilter('text', e.target.value)}
+            placeholder="Ключевые слова"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          />
+          <SearchHint />
+        </div>
+        <div className="md:hidden">
+          <SearchHint />
+        </div>
       </div>
 
       {/* Excluded Keywords */}
