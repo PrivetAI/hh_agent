@@ -259,7 +259,7 @@ function StatsCounter() {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div className="bg-white rounded-xl p-6 text-center border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
         <div className="text-2xl sm:text-3xl font-bold text-[#d6001c] mb-2">
-          {(stats.totalResponses + 1000).toLocaleString()}
+          {(stats.totalResponses).toLocaleString()}
         </div>
         <div className="text-xs sm:text-sm text-gray-600">откликов создано через HH Agent</div>
       </div>

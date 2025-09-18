@@ -23,7 +23,7 @@ async def get_cover_letter_stats(db: Session = Depends(get_db)):
     ).scalar() or 0
     
     return {
-        "total_generated": total_count,
+        "total_generated": total_count + 1000,
         "last_24h_generated": last_24h_count,
         "timestamp": datetime.utcnow().isoformat()
     }
