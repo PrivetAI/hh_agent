@@ -97,8 +97,8 @@ function AuthenticatedHome() {
         <header className="bg-white border-b border-[#e7e7e7]">
           <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <span className="text-[#d6001c] font-bold text-xl">hh</span>
-              <span className="text-[#232529] font-medium">агент</span>
+              <span className="text-[#d6001c] font-bold text-xl">hh Agent</span>
+              <span className="text-[#232529] font-medium">ai поиск работы</span>
             </div>
             <div className="flex items-center space-x-4">
               <a 

@@ -18,7 +18,7 @@ interface SEOHeadProps {
 export default function SEOHead({
   title = 'HH Agent - AI поиск работы на hh.ru | Автоматизированные сопроводительные письма',
   description = 'Умный AI-помощник для поиска работы на hh.ru. Создает уникальные сопроводительные письма, увеличивая отклик работодателей в 3 раза. Бесплатно!',
-  keywords = 'hh.ru, поиск работы, AI помощник, сопроводительные письма, отклики, резюме, вакансии, HeadHunter, автоматизация откликов headhunter, сопроводительное письмо headhunter',
+  keywords = 'hh.ru, поиск работы, AI поиск работы, сопроводительные письма, отклики, резюме, вакансии, HeadHunter, автоматизация откликов headhunter, сопроводительное письмо headhunter, хх агент, hh агент',
   ogImage = '/og-image.png',
   ogImageWidth = 1200,
   ogImageHeight = 630,
@@ -84,6 +84,7 @@ export default function SEOHead({
       <link rel="apple-touch-icon" sizes="180x180" href="/favicon-32x32.png" />
       <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
       <link rel="manifest" href="/manifest.json" />
+      <link rel="shortcut icon" href="/favicon.ico"/>
 
       {/* Дополнительные мета-теги для поисковиков */}
       <meta name="theme-color" content="#d6001c" />

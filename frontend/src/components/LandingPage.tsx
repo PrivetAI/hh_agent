@@ -310,8 +310,8 @@ export default function LandingPage() {
           <div className="container mx-auto px-4 py-4 sm:py-5">
             <div className="flex items-center justify-center">
               <div className="flex items-center space-x-2">
-                <span className="text-[#d6001c] font-bold text-2xl sm:text-3xl">hh</span>
-                <span className="text-gray-800 font-bold text-xl sm:text-2xl">агент</span>
+                <span className="text-[#d6001c] font-bold text-2xl sm:text-3xl">hh Agent</span>
+                <span className="text-gray-800 font-bold text-xl sm:text-2xl">ai поиск работы</span>
               </div>
             </div>
           </div>
