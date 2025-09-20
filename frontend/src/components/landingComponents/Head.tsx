@@ -43,6 +43,57 @@ export default function SEOHead({
   const absoluteOgImage = makeAbsolute(ogImage)
   const absoluteSecureOgImage = ogImageSecureUrl ? makeAbsolute(ogImageSecureUrl) : absoluteOgImage
 
+  const siteName = 'HH Agent'
+  const logo = '/favicon-32x32.png'
+  const absoluteLogo = makeAbsolute(logo)
+
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      "url": siteUrl,
+      "name": siteName,
+      "publisher": { "@id": `${siteUrl}/#organization` },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": `${siteUrl}/search?q={search_term_string}`,
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "@id": `${siteUrl}/#organization`,
+      "name": siteName,
+      "url": siteUrl,
+      "logo": { 
+        "@type": "ImageObject", 
+        "url": absoluteLogo 
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": siteName,
+      "description": description,
+      "url": siteUrl,
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "RUB",
+        "description": "10 бесплатных откликов для новых пользователей"
+      },
+      "author": { "@id": `${siteUrl}/#organization` },
+      "logo": {
+        "@type": "ImageObject",
+        "url": absoluteLogo
+      }
+    }
+  ]
+
   return (
     <Head>
       {/* Основные мета-теги */}
@@ -98,25 +149,7 @@ export default function SEOHead({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "HH Agent",
-            "description": description,
-            "url": ogUrl,
-            "applicationCategory": "BusinessApplication",
-            "operatingSystem": "Web",
-            "offers": {
-              "@type": "Offer",
-              "price": "0",
-              "priceCurrency": "RUB",
-              "description": "10 бесплатных откликов для новых пользователей"
-            },
-            "author": {
-              "@type": "Organization",
-              "name": "HH Agent"
-            }
-          })
+          __html: JSON.stringify(jsonLd)
         }}
       />
     </Head>
