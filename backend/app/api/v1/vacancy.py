@@ -122,8 +122,8 @@ async def generate_letter(
     
     try:
         # Get vacancy details first
-        vacancy = await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
-        vacancy_title = vacancy.get("name", "Неизвестная вакансия")
+        # vacancy = await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
+        # vacancy_title = vacancy.get("name", "Неизвестная вакансия")
         
         # Set timeout for the entire operation
         generation_timeout = 75  # seconds (slightly more than AI service timeout)
