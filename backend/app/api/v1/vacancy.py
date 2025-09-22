@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
@@ -107,10 +107,18 @@ async def generate_letter(
     vacancy_id: str,
     resume_id: Optional[str] = None,
     user: User = Depends(check_user_credits),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    request: Request,
 ):
     """Generate cover letter for vacancy with timeout protection"""
-    logger.info(f"Generating letter for vacancy {vacancy_id}, user {user.hh_user_id}")
+    logger.info(
+        "Incoming %s %s for vacancy=%s user=%s resume_id=%s",
+        request.method,
+        request.url.path,
+        vacancy_id,
+        user.hh_user_id,
+        resume_id or "auto",
+    )
     
     try:
         # Get vacancy details first

@@ -37,6 +37,11 @@ class OpenAIProvider:
             
             # Combine prompts
             combined_input = f"{system_prompt}\n\n{user_prompt}"
+            logger.info(
+                "OpenAI request prepared: system_len=%d user_len=%d",
+                len(system_prompt or ""),
+                len(user_prompt or ""),
+            )
             
             # Wrap in asyncio timeout for additional protection
             try:
