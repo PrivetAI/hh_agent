@@ -14,6 +14,16 @@ from ...crud.application import ApplicationCRUD
 
 logger = logging.getLogger(__name__)
 
+RESUME_LIST_CACHE_TTL = 300  # seconds
+
+
+def _resume_list_cache_key(hh_user_id: str) -> str:
+    return f"resumes:api:{hh_user_id}"
+
+
+def _resume_item_cache_key(hh_user_id: str, resume_id: str) -> str:
+    return f"resumes:api:{hh_user_id}:{resume_id}"
+
 
 class HHService:
     def __init__(self):
@@ -30,27 +40,71 @@ class HHService:
 
     async def get_user_resumes(self, hh_user_id: str) -> List[Dict[str, Any]]:
         """Get all user's resumes from API (without RTF)"""
-        cached = await self.redis_service.get_json(f"resumes:api:{hh_user_id}")
-        if cached:
+        cache_key = _resume_list_cache_key(hh_user_id)
+        cached = await self.redis_service.get_json(cache_key)
+        if cached is not None:
             return cached
 
         token = await self._get_token(hh_user_id)
-        resumes = await self.hh_client.get_resumes(token)
+        resumes = await self.hh_client.get_resumes(token) or []
 
-        await self.redis_service.set_json(f"resumes:api:{hh_user_id}", resumes, 60)
+        await self.redis_service.set_json(
+            cache_key,
+            resumes,
+            RESUME_LIST_CACHE_TTL,
+        )
+
+        if resumes:
+            tasks = []
+            for resume in resumes:
+                resume_id = resume.get("id")
+                if not resume_id:
+                    continue
+                tasks.append(
+                    self.redis_service.set_json(
+                        _resume_item_cache_key(hh_user_id, resume_id),
+                        resume,
+                        RESUME_LIST_CACHE_TTL,
+                    )
+                )
+            if tasks:
+                await asyncio.gather(*tasks)
+
         return resumes
 
     async def get_user_resume(
         self, hh_user_id: str, resume_id: str = None
     ) -> Optional[Dict[str, Any]]:
         """Get specific resume or first resume"""
+        if resume_id:
+            resume_cache_key = _resume_item_cache_key(hh_user_id, resume_id)
+            cached_resume = await self.redis_service.get_json(resume_cache_key)
+            if cached_resume is not None:
+                return cached_resume
+
         resumes = await self.get_user_resumes(hh_user_id)
         if not resumes:
             return None
 
         if resume_id:
-            return next((r for r in resumes if r.get("id") == resume_id), None)
-        return resumes[0]
+            resume = next((r for r in resumes if r.get("id") == resume_id), None)
+            if resume:
+                await self.redis_service.set_json(
+                    resume_cache_key,
+                    resume,
+                    RESUME_LIST_CACHE_TTL,
+                )
+            return resume
+
+        resume = resumes[0]
+        first_resume_id = resume.get("id")
+        if first_resume_id:
+            await self.redis_service.set_json(
+                _resume_item_cache_key(hh_user_id, first_resume_id),
+                resume,
+                RESUME_LIST_CACHE_TTL,
+            )
+        return resume
 
     async def search_vacancies(
         self, hh_user_id: str, params: Dict[str, Any]

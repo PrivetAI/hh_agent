@@ -1,7 +1,7 @@
 import json
 import redis.asyncio as redis
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from fastapi import HTTPException
 
 class RedisService:
@@ -33,8 +33,8 @@ class RedisService:
             return None
         return token.decode() if isinstance(token, bytes) else token
 
-    async def get_json(self, key: str) -> Optional[Dict[str, Any]]:
-        """Get JSON data from Redis"""
+    async def get_json(self, key: str) -> Optional[Any]:
+        """Get JSON-serializable data from Redis"""
         try:
             data = await self.redis.get(key)
             if data:
@@ -44,8 +44,8 @@ class RedisService:
             print(f"Redis get error for {key}: {e}")
             return None
 
-    async def set_json(self, key: str, data: Dict[str, Any], expire: int = None):
-        """Store JSON data in Redis"""
+    async def set_json(self, key: str, data: Any, expire: int = None):
+        """Store JSON-serializable data in Redis"""
         try:
             json_data = json.dumps(data, ensure_ascii=False)
             if expire:
