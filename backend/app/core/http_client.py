@@ -28,7 +28,7 @@ class HTTPClient:
                 },
                 follow_redirects=True,
                 limits=httpx.Limits(
-                    max_keepalive_connections=100,
+                    max_keepalive_connections=50,
                     max_connections=100,
                     keepalive_expiry=60  # Close idle connections after 30s
                 )
@@ -48,8 +48,8 @@ class HTTPClient:
                     pool=120.0
                 ),
                 limits=httpx.Limits(
-                    max_keepalive_connections=100,  # Less connections for AI
-                    max_connections=100,
+                    max_keepalive_connections=10,  # Less connections for AI
+                    max_connections=20,
                     keepalive_expiry=60
                 )
             )
