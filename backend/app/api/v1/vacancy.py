@@ -105,10 +105,10 @@ async def get_vacancy_details(vacancy_id: str, user: User = Depends(get_current_
 @router.post("/vacancy/{vacancy_id}/generate-letter", response_model=CoverLetter)
 async def generate_letter(
     vacancy_id: str,
+    request: Request,
     resume_id: Optional[str] = None,
     user: User = Depends(check_user_credits),
     db: Session = Depends(get_db),
-    request: Request,
 ):
     """Generate cover letter for vacancy with timeout protection"""
     logger.info(
