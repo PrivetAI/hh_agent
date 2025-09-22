@@ -20,6 +20,9 @@ class HHService:
         self.hh_client = HHClient()
         self.redis_service = RedisService()
         self.ai_service = AIService()
+        batch_size = max(settings.HH_BATCH_SIZE, 1)
+        self._generation_semaphore = asyncio.BoundedSemaphore(batch_size)
+        self._generation_delay = max(settings.HH_BATCH_DELAY, 0.0)
 
     async def _get_token(self, hh_user_id: str) -> str:
         """Get user token with error handling"""
@@ -118,7 +121,7 @@ class HHService:
     ) -> Dict[str, Any]:
         """Generate cover letter with proper isolation"""
         # Create separate task for AI generation to prevent blocking
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Get resume and vacancy data (these are fast operations)
         resume = await self.get_user_resume(hh_user_id, resume_id)
@@ -127,9 +130,13 @@ class HHService:
 
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
 
+        acquired = False
+
         try:
+            await self._generation_semaphore.acquire()
+            acquired = True
             # Create a new task for AI generation
-            generation_task = asyncio.create_task(
+            generation_task = loop.create_task(
                 self.ai_service.generate_cover_letter(resume, vacancy, user_id)
             )
 
@@ -144,6 +151,17 @@ class HHService:
         except Exception as e:
             logger.error(f"Error in cover letter generation: {e}")
             raise
+        finally:
+            if acquired:
+                if self._generation_delay > 0:
+                    loop.create_task(self._delayed_generation_release())
+                else:
+                    self._generation_semaphore.release()
+
+    async def _delayed_generation_release(self) -> None:
+        """Release AI generation slot after configured delay"""
+        await asyncio.sleep(self._generation_delay)
+        self._generation_semaphore.release()
 
     async def get_dictionaries(self) -> Dict[str, Any]:
        """Get HH dictionaries with caching"""
