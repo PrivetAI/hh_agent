@@ -125,13 +125,8 @@ async def generate_letter(
         vacancy = await hh_service.get_vacancy_details(user.hh_user_id, vacancy_id)
         vacancy_title = vacancy.get("name", "Неизвестная вакансия")
         
-        # Set timeout for the entire operation based on current queue load
-        estimated_timeout = hh_service.estimate_cover_letter_timeout(include_current=True)
-        buffer_seconds = hh_service.cover_letter_batch_delay
-        generation_timeout = max(
-            hh_service.ai_service.generation_timeout + buffer_seconds,
-            estimated_timeout + buffer_seconds,
-        )
+        # Set timeout for the entire operation
+        generation_timeout = 75  # seconds (slightly more than AI service timeout)
         
         try:
             # Generate letter with timeout protection at API level
@@ -145,12 +140,7 @@ async def generate_letter(
                 timeout=generation_timeout
             )
         except asyncio.TimeoutError:
-            logger.error(
-                "Letter generation timed out after %.2fs for vacancy %s (estimated %.2fs)",
-                generation_timeout,
-                vacancy_id,
-                estimated_timeout,
-            )
+            logger.error(f"Letter generation timed out after {generation_timeout}s for vacancy {vacancy_id}")
             # Return error, not fallback - let the client handle retry
             raise HTTPException(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,

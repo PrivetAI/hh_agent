@@ -30,11 +30,6 @@ class HHService:
         self.hh_client = HHClient()
         self.redis_service = RedisService()
         self.ai_service = AIService()
-        self.cover_letter_batch_size = max(1, int(settings.HH_BATCH_SIZE))
-        self.cover_letter_batch_delay = max(0.0, float(settings.HH_BATCH_DELAY))
-        self.cover_letter_semaphore = asyncio.Semaphore(self.cover_letter_batch_size)
-        self.cover_letter_waiters = 0
-        self.cover_letter_active = 0
 
     async def _get_token(self, hh_user_id: str) -> str:
         """Get user token with error handling"""
@@ -176,6 +171,8 @@ class HHService:
         self, hh_user_id: str, vacancy_id: str, resume_id: str, user_id: str = None
     ) -> Dict[str, Any]:
         """Generate cover letter with proper isolation"""
+        # Create separate task for AI generation to prevent blocking
+        loop = asyncio.get_event_loop()
 
         # Get resume and vacancy data (these are fast operations)
         resume = await self.get_user_resume(hh_user_id, resume_id)
@@ -184,11 +181,15 @@ class HHService:
 
         vacancy = await self.get_vacancy_details(hh_user_id, vacancy_id)
 
-        slot_acquired = False
         try:
-            await self._acquire_cover_letter_slot()
-            slot_acquired = True
-            result = await self.ai_service.generate_cover_letter(resume, vacancy, user_id)
+            # Create a new task for AI generation
+            generation_task = asyncio.create_task(
+                self.ai_service.generate_cover_letter(resume, vacancy, user_id)
+            )
+
+            # The timeout is handled inside ai_service, but we can add additional protection
+            result = await generation_task
+
             return result
 
         except asyncio.CancelledError:
@@ -197,45 +198,6 @@ class HHService:
         except Exception as e:
             logger.error(f"Error in cover letter generation: {e}")
             raise
-        finally:
-            if slot_acquired:
-                await self._release_cover_letter_slot()
-
-    async def _acquire_cover_letter_slot(self) -> None:
-        """Reserve a slot in the cover letter generation batch."""
-        self.cover_letter_waiters += 1
-        try:
-            await self.cover_letter_semaphore.acquire()
-        finally:
-            if self.cover_letter_waiters > 0:
-                self.cover_letter_waiters -= 1
-            else:
-                self.cover_letter_waiters = 0
-
-        self.cover_letter_active += 1
-
-    async def _release_cover_letter_slot(self) -> None:
-        """Release a previously acquired cover letter generation slot."""
-        try:
-            if self.cover_letter_batch_delay > 0 and self.cover_letter_waiters > 0:
-                await asyncio.sleep(self.cover_letter_batch_delay)
-        finally:
-            if self.cover_letter_active > 0:
-                self.cover_letter_active -= 1
-            self.cover_letter_semaphore.release()
-
-    def estimate_cover_letter_timeout(self, include_current: bool = False) -> float:
-        """Estimate total time budget needed for cover letter generation."""
-        per_request = float(self.ai_service.generation_timeout) + self.cover_letter_batch_delay
-        if per_request <= 0:
-            per_request = max(float(self.ai_service.generation_timeout), 60.0)
-
-        tasks_ahead = self.cover_letter_active + self.cover_letter_waiters
-        if include_current:
-            tasks_ahead += 1
-
-        batches_before = tasks_ahead // self.cover_letter_batch_size
-        return max(per_request, (batches_before + 1) * per_request)
 
     async def get_dictionaries(self) -> Dict[str, Any]:
        """Get HH dictionaries with caching"""
