@@ -22,8 +22,6 @@ class Settings(BaseSettings):
     ROBOKASSA_TEST_PASSWORD_2: str = ""  # Значение по умолчанию для dev
     HH_BATCH_SIZE: int = 1
     HH_BATCH_DELAY: float = 1.0
-    HH_AI_BATCH_SIZE: int = 5
-    HH_AI_BATCH_DELAY: float = 2.0
     HH_RETRY_COUNT: int = 3
     HH_APP_NAME: str = "hh_agent"
     HH_CONTACT_EMAIL: str = "support@hhagent.ru"

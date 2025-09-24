@@ -8,10 +8,6 @@ import asyncio
 from typing import Dict, Any, Optional
 from fastapi import HTTPException
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
-import random
-
-from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +49,6 @@ class AIService:
         
         self._validate_and_cache_prompts()
         logger.info("AI Service initialization completed successfully")
-
-        # Batch processing semaphore to control concurrent AI generations
-        self.ai_semaphore = asyncio.Semaphore(settings.HH_AI_BATCH_SIZE)
-        logger.info(f"AI batch size set to {settings.HH_AI_BATCH_SIZE}")
-
-        # Batch counter for delay logic
-        self.batch_counter = 0
     
     def _validate_and_cache_prompts(self):
         """Validation and caching of prompts"""
@@ -232,25 +221,19 @@ class AIService:
 ##Текст вакансии:
 {vacancy_text}"""
             
-            # Batch processing to reduce CPU load during high concurrent requests
-            active_count = settings.HH_AI_BATCH_SIZE - self.ai_semaphore._value
-            logger.info(f"AI Batch control: active={active_count}, max={settings.HH_AI_BATCH_SIZE}, waiting for semaphore...")
-
-            # Small random delay to prevent thundering herd
-            await asyncio.sleep(random.uniform(0, 1))
-
-            async with self.ai_semaphore:
-                self.batch_counter += 1
-                logger.info(f"Acquired AI semaphore, generating letter (batch #{self.batch_counter})...")
-
-                try:
-                    letter = await asyncio.wait_for(
-                        self.provider.generate(system_prompt, user_prompt),
-                        timeout=self.generation_timeout
-                    )
-                except asyncio.TimeoutError:
-                    logger.error(f"AI generation timed out after {self.generation_timeout} seconds")
-                    return self._get_fallback_letter(vacancy, full_name, selected_prompt)
+            # Generate letter with timeout protection
+            logger.info(f"Sending request to {self.ai_provider}")
+            
+            try:
+                # Add overall timeout for the AI generation
+                letter = await asyncio.wait_for(
+                    self.provider.generate(system_prompt, user_prompt),
+                    timeout=self.generation_timeout
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"AI generation timed out after {self.generation_timeout} seconds")
+                # Return fallback on timeout within AI service
+                return self._get_fallback_letter(vacancy, full_name, selected_prompt)
             
             signed_letter = f"""{letter}
 
