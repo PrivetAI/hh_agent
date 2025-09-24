@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel
 import asyncio
 from ...api.deps import get_current_user, check_user_credits, get_db
+from ...core.database import SessionLocal
 from ...crud.user import UserCRUD
 from ...crud.application import ApplicationCRUD
 
@@ -108,7 +109,6 @@ async def generate_letter(
     request: Request,
     resume_id: Optional[str] = None,
     user: User = Depends(check_user_credits),
-    db: Session = Depends(get_db),
 ):
     """Generate cover letter for vacancy with timeout protection"""
     logger.info(
@@ -151,8 +151,9 @@ async def generate_letter(
         if result.get("is_fallback", False):
             logger.warning(f"Fallback letter generated for user {user.id} - credits not deducted")
         else:
-            # Deduct credit only for successful generation
-            success = UserCRUD.decrement_credits(db, user.id)
+            # Deduct credit only for successful generation using a fresh session
+            with SessionLocal() as db:
+                success = UserCRUD.decrement_credits(db, user.id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,

@@ -1,11 +1,10 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from uuid import UUID
 
 from ..core.config import settings
-from ..core.database import get_db
+from ..core.database import get_db, SessionLocal
 from ..crud.user import UserCRUD
 from ..models.db import User
 
@@ -33,23 +32,24 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
         )
 
 def get_current_user(
-    hh_user_id: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    hh_user_id: str = Depends(verify_token)
 ) -> User:
-    """Get current user from DB"""
-    user = UserCRUD.get_by_hh_id(db, hh_user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    return user
+    """Get current user from DB using a short-lived session"""
+    with SessionLocal() as db:
+        user = UserCRUD.get_by_hh_id(db, hh_user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        db.expunge(user)
+        return user
 
 def check_user_credits(user: User = Depends(get_current_user)) -> User:
     """Check if user has credits"""
     if user.credits <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Insufficient credits. Please purchase more credits to continue."
+            detail="Недостаточно токенов. Пожалуйста пополните"
         )
     return user
